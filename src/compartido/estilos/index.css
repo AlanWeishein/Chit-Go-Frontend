@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+/* Paleta "Chocolate y Menta" (decidida el 09/10) */
+@theme {
+  --color-fondo: #F6F5F2;
+  --color-tarjeta: #FFFFFF;
+  --color-linea: #E4E0DA;
+  --color-texto: #2A211D;
+  --color-secundario: #6E635C;
+  --color-primario: #4B3027;
+  --color-suave: #DCEDE4;
+}
+
+body {
+  margin: 0;
+}
