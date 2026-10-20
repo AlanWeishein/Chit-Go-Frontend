@@ -1,4 +1,4 @@
-import { Client, type StompSubscription } from '@stomp/stompjs'
+import { Client,type StompSubscription } from '@stomp/stompjs'
 
 // Una única conexión STOMP para toda la app.
 // El personal se autentica con la cookie del handshake; el cliente anónimo manda su
