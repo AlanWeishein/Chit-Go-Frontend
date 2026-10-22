@@ -1,4 +1,4 @@
-import { Client,type StompSubscription } from '@stomp/stompjs'
+import { Client, type StompSubscription } from '@stomp/stompjs'
 
 // Una única conexión STOMP para toda la app.
 // El personal se autentica con la cookie del handshake; el cliente anónimo manda su
@@ -31,7 +31,7 @@ function abrir(c: Client, e: Escucha) {
 export function conectar(connectHeaders: Record<string, string> = {}): Client {
   if (cliente?.active) return cliente
   const protocolo = location.protocol === 'https:' ? 'wss' : 'ws'
-  const c = new Client({
+  const c: Client = new Client({
     brokerURL: `${protocolo}://${location.host}/ws`,
     connectHeaders,
     reconnectDelay: 3000,
