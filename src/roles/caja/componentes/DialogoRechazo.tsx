@@ -82,3 +82,4 @@ export default function DialogoRechazo({ pedido, enviando, onConfirmar, onCancel
     </div>
   )
 }
+
