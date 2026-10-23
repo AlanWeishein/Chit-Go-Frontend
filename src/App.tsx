@@ -4,6 +4,7 @@ import RutaProtegida from './compartido/sesion/RutaProtegida'
 import LoginAdmin from './roles/acceso/paginas/LoginAdmin'
 import LoginPin from './roles/acceso/paginas/LoginPin'
 import ColaAprobacion from './roles/caja/paginas/ColaAprobacion'
+import ColaCocina from './roles/cocina/paginas/ColaCocina'
 
 // Una sola PWA con una sección por rol. Cada ruta apunta a la página de su rol cuando exista.
 export default function App() {
@@ -17,6 +18,14 @@ export default function App() {
         element={
           <RutaProtegida roles={['CAJA']}>
             <ColaAprobacion />
+          </RutaProtegida>
+        }
+      />
+      <Route
+        path="/cocina/cola"
+        element={
+          <RutaProtegida roles={['COCINA']}>
+            <ColaCocina />
           </RutaProtegida>
         }
       />
