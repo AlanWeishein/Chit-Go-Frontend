@@ -1,30 +1,23 @@
-export interface Etiqueta {
-  id: number;
-  nombre: string;
-}
-
+// Forma de GET /public/mesas/{tokenQR}/menu: los destacados arriba y después las categorías en su orden.
+// Los platos no disponibles no vienen.
 export interface Plato {
   id: number;
   nombre: string;
-  descripcion: string;
+  descripcion: string | null;
   precio: number;
-  imagenUrl?: string;
+  imagenUrl: string | null;
   destacado: boolean;
-  activo: boolean;
-  categoriaId: number;
-  etiquetas: Etiqueta[];
+  etiquetas: string[];
 }
 
 export interface CategoriaMenu {
   id: number;
   nombre: string;
   orden: number;
+  platos: Plato[];
 }
 
-export interface RespuestaMesaMenu {
-  mesaNumero: number;
-  esIniciador: boolean;
+export interface Carta {
+  destacados: Plato[];
   categorias: CategoriaMenu[];
-  platos: Plato[];
-  etiquetasDisponibles: Etiqueta[];
 }

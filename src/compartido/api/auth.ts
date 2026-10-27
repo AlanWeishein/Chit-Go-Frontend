@@ -91,7 +91,7 @@ async function conTraduccion<T>(endpoint: Endpoint, pedido: () => Promise<T>): P
 
 /* ---------------- Mocks (solo en desarrollo) ----------------
    Devuelven la misma forma que el back real y fallan con ApiError + ProblemDetail, igual que
-   http.ts, así que pasan por el mismo traducirError. Se apagan con VITE_USAR_MOCKS=false en
+   http.ts, así que pasan por el mismo traducirError. Se prenden solo con VITE_MOCKS=true en
    .env.local. En un build de producción nunca se usan.
 
    Datos de prueba (token de staff: cualquiera; con "invalido" da 404):
@@ -100,7 +100,7 @@ async function conTraduccion<T>(endpoint: Endpoint, pedido: () => Promise<T>): P
             Lucía (COCINA) 0000: da 403 CREDENCIAL_PROVISORIA
             5 PIN incorrectos seguidos de un usuario y el siguiente intento da 423 (bloqueado)
    - Admin: admin@laesquina.test / admin1234 (ADMIN) · dueno@laesquina.test / dueno1234 (GERENTE_DUENO, local null) */
-export const USAR_MOCKS = import.meta.env.DEV && import.meta.env.VITE_USAR_MOCKS !== 'false'
+export const USAR_MOCKS = import.meta.env.DEV && import.meta.env.VITE_MOCKS === 'true'
 
 const LOCAL_MOCK: Local = { id: 1, nombre: 'La Esquina' }
 
