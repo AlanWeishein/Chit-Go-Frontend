@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { cerrarSesion, obtenerSesion, type Sesion } from '../api/auth'
+import { registrarSesionVencida } from '../api/http'
+import { desconectar } from '../ws/conexion'
 
 interface ValorSesion {
   sesion: Sesion | null
@@ -26,10 +28,20 @@ export function SesionProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // Sesión vencida (401 en cualquier llamada): se limpia acá y RutaProtegida manda al login.
+  useEffect(() => {
+    registrarSesionVencida(() => {
+      desconectar()
+      setSesion(null)
+    })
+    return () => registrarSesionVencida(null)
+  }, [])
+
   const cerrar = useCallback(async () => {
     try {
       await cerrarSesion()
     } finally {
+      desconectar() // el próximo operador abre su propia conexión
       setSesion(null)
     }
   }, [])

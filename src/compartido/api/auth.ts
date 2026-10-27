@@ -1,6 +1,6 @@
 // Autenticación. Las pantallas usan estas funciones, nunca fetch directo.
 // El JWT viaja en una cookie HttpOnly: el front no lo guarda ni lo lee.
-import { api, ApiError, type ProblemDetail } from './http'
+import { api, ApiError, avisarSesionVencida, type ProblemDetail } from './http'
 
 /* ---------------- Tipos (forma exacta del contrato del back) ---------------- */
 
@@ -202,6 +202,15 @@ async function mockSesion(): Promise<Sesion> {
   const s = leerSesionMock()
   if (!s) throw problema(401, 'Unauthorized', 'No hay sesión')
   return s
+}
+
+// Para los mocks de otras pantallas: si no hay sesión mock vigente, fallan como el back real
+// (401) y avisan a la app igual que lo haría http.ts. Se prueba borrando 'chitgo-sesion-mock'
+// de sessionStorage y tocando cualquier botón.
+export function exigirSesionMock(): void {
+  if (leerSesionMock()) return
+  avisarSesionVencida()
+  throw problema(401, 'Unauthorized', 'La sesión venció')
 }
 
 /* ---------------- Funciones públicas ---------------- */
