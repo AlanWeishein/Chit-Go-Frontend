@@ -1,5 +1,3 @@
-// Las pantallas nunca llaman a fetch directo: pasan por acá.
-// Así un cambio de endpoint o de manejo de errores se toca en un solo archivo.
 const BASE = '/api/v1'
 
 // Forma de los errores del back (ProblemDetail). Se compara status y codigo, nunca el texto de detail.
@@ -11,10 +9,7 @@ export interface ProblemDetail {
 }
 
 export class ApiError extends Error {
-  constructor(
-    public status: number,
-    public detalle?: unknown,
-  ) {
+  constructor(public status: number, public detalle?: unknown) {
     super(`HTTP ${status}`)
   }
 }

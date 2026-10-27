@@ -5,7 +5,6 @@ import LoginAdmin from './roles/acceso/paginas/LoginAdmin'
 import LoginPin from './roles/acceso/paginas/LoginPin'
 import ColaAprobacion from './roles/caja/paginas/ColaAprobacion'
 
-// Una sola PWA con una sección por rol. Cada ruta apunta a la página de su rol cuando exista.
 export default function App() {
   return (
     <Routes>
