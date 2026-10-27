@@ -1,6 +1,6 @@
 // Lo que usa el cliente desde la mesa. Las pantallas usan estas funciones, nunca fetch directo.
 // La mesa va por el tokenQR y el celular por el header X-Session-Token: el número de mesa nunca viaja (08/09).
-import { api, ApiError } from './http'
+import { api, ApiError, type ProblemDetail } from './http'
 import { guardarTokenSesion, leerTokenSesion } from '../sesion/sesionMesa'
 import type { Carta } from '../tipos/menu'
 
@@ -17,10 +17,19 @@ export interface SesionMesa {
   esIniciador: boolean
 }
 
+// POST /public/pedidos. El uuidCliente es la clave de idempotencia: una por pedido, la misma en sus reintentos (RNF-09).
+export interface PedidoAEnviar {
+  uuidCliente: string
+  items: { platoId: number; cantidad: number; observacion: string | null }[]
+}
+
 export type FalloCliente =
   | { motivo: 'mesa-inexistente' } // 404
   | { motivo: 'mesa-no-disponible' } // 409 al abrir la sesión: la mesa está inhabilitada
   | { motivo: 'mozo-ya-avisado' } // 409 al llamar al mozo: hay un llamado sin atender
+  | { motivo: 'pedido-sin-permiso' } // 403 al pedir: no es la sesión iniciadora, o la sesión no vale
+  | { motivo: 'pedido-en-conflicto'; detalle?: string } // 409 al pedir: la cuenta se cerró o un plato ya no está
+  | { motivo: 'pedido-invalido' } // 400 al pedir
   | { motivo: 'red' } // sin conexión o error inesperado
 
 export class ClienteFallido extends Error {
@@ -29,7 +38,12 @@ export class ClienteFallido extends Error {
   }
 }
 
-type Endpoint = 'mesa' | 'sesion' | 'carta' | 'llamar-mozo'
+type Endpoint = 'mesa' | 'sesion' | 'carta' | 'llamar-mozo' | 'pedido'
+
+function detalleDe(err: ApiError): string | undefined {
+  const cuerpo = err.detalle as ProblemDetail | undefined
+  return typeof cuerpo?.detail === 'string' && cuerpo.detail !== '' ? cuerpo.detail : undefined
+}
 
 // Se compara el status, nunca el texto de detail.
 export function traducirError(err: unknown, endpoint?: Endpoint): FalloCliente {
@@ -37,6 +51,13 @@ export function traducirError(err: unknown, endpoint?: Endpoint): FalloCliente {
   if (!(err instanceof ApiError)) return { motivo: 'red' }
 
   if (endpoint === 'llamar-mozo') return err.status === 409 ? { motivo: 'mozo-ya-avisado' } : { motivo: 'red' }
+  if (endpoint === 'pedido') {
+    if (err.status === 403) return { motivo: 'pedido-sin-permiso' }
+    if (err.status === 400) return { motivo: 'pedido-invalido' }
+    // El 409 es la cuenta cerrada o un plato que ya no está, y el status no los distingue: se muestra el detail del back.
+    if (err.status === 409) return { motivo: 'pedido-en-conflicto', detalle: detalleDe(err) }
+    return { motivo: 'red' }
+  }
   if (err.status === 404) return { motivo: 'mesa-inexistente' }
   if (endpoint === 'sesion' && err.status === 409) return { motivo: 'mesa-no-disponible' }
 
@@ -92,5 +113,16 @@ export function obtenerCarta(tokenQR: string, etiqueta?: string): Promise<Carta>
 export async function llamarAlMozo(tokenSesion: string): Promise<void> {
   await conTraduccion('llamar-mozo', () =>
     api<unknown>('/public/avisos/llamar-mozo', { method: 'POST', headers: { 'X-Session-Token': tokenSesion } }),
+  )
+}
+
+// Solo la sesión iniciadora. 201 si lo creó y 200 si era un reintento de ese pedido: para la app son lo mismo.
+export async function enviarPedido(tokenSesion: string, pedido: PedidoAEnviar): Promise<void> {
+  await conTraduccion('pedido', () =>
+    api<unknown>('/public/pedidos', {
+      method: 'POST',
+      headers: { 'X-Session-Token': tokenSesion },
+      body: JSON.stringify(pedido),
+    }),
   )
 }

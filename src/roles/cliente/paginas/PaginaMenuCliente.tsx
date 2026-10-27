@@ -41,7 +41,6 @@ export const PaginaMenuCliente: React.FC = () => {
 
   // Estados agregados para HU-02 (Carrito)
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
-  const [uuidCliente, setUuidCliente] = useState<string>('');
 
   // Primero se mira la mesa, así una inhabilitada (P-35) o un QR que no existe (P-35b) no abren nada.
   // Después va la sesión: si el celular ya tenía una en esa cuenta, el back le devuelve la misma.
@@ -95,16 +94,6 @@ export const PaginaMenuCliente: React.FC = () => {
       activo = false;
     };
   }, [token, mesaLista, etiquetaSeleccionada, intentoCarta]);
-
-  // 2. Generar o recuperar clave de idempotencia (uuidCliente)
-  useEffect(() => {
-    let clienteId = localStorage.getItem('uuidCliente');
-    if (!clienteId) {
-      clienteId = crypto.randomUUID();
-      localStorage.setItem('uuidCliente', clienteId);
-    }
-    setUuidCliente(clienteId);
-  }, []);
 
   // 3. Funciones de manipulación del carrito (HU-02)
   const handleAgregarAlCarrito = (producto: Plato) => {
@@ -306,8 +295,7 @@ export const PaginaMenuCliente: React.FC = () => {
               <div className="sticky top-20">
                 <CarritoCliente
                   items={carrito}
-                  uuidMesa={token}
-                  uuidCliente={uuidCliente}
+                  tokenSesion={sesion.tokenSesion}
                   onActualizarCantidad={handleActualizarCantidad}
                   onLimpiarCarrito={handleLimpiarCarrito}
                 />
