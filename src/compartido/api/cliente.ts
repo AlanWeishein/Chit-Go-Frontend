@@ -23,6 +23,36 @@ export interface PedidoAEnviar {
   items: { platoId: number; cantidad: number; observacion: string | null }[]
 }
 
+// Los estados del pedido (sección 12 del contrato).
+export type EstadoPedido =
+  | 'PENDIENTE_APROBACION'
+  | 'APROBADO'
+  | 'RECHAZADO'
+  | 'EN_PREPARACION'
+  | 'LISTO'
+  | 'SERVIDO'
+  | 'CANCELADO'
+
+export type MotivoRechazo = 'NO_DISPONIBLE' | 'PEDIDO_INVALIDO' | 'MESA_NO_OCUPADA'
+
+export interface PedidoDeLaCuenta {
+  id: number
+  estado: EstadoPedido
+  motivoRechazo: MotivoRechazo | null
+  enviadoEn: string
+  total: number
+  items: { platoId: number; plato: string; cantidad: number; precioUnitario: number; observacion: string | null }[]
+}
+
+// GET /public/sesion/estado: la cuenta y todos sus pedidos como están ahora. El total ya deja afuera
+// los rechazados y los cancelados.
+export interface EstadoDeSesion {
+  esIniciador: boolean
+  cuentaEstado: 'ABIERTA' | 'SOLICITADA' | 'CERRADA'
+  total: number
+  pedidos: PedidoDeLaCuenta[]
+}
+
 export type FalloCliente =
   | { motivo: 'mesa-inexistente' } // 404
   | { motivo: 'mesa-no-disponible' } // 409 al abrir la sesión: la mesa está inhabilitada
@@ -30,6 +60,8 @@ export type FalloCliente =
   | { motivo: 'pedido-sin-permiso' } // 403 al pedir: no es la sesión iniciadora, o la sesión no vale
   | { motivo: 'pedido-en-conflicto'; detalle?: string } // 409 al pedir: la cuenta se cerró o un plato ya no está
   | { motivo: 'pedido-invalido' } // 400 al pedir
+  | { motivo: 'cancelar-en-conflicto'; detalle?: string } // 409 al cancelar: el pedido ya no está en espera
+  | { motivo: 'sesion-invalida' } // 403 al pedir el estado o al cancelar: la sesión no vale o el pedido es de otra
   | { motivo: 'red' } // sin conexión o error inesperado
 
 export class ClienteFallido extends Error {
@@ -38,7 +70,7 @@ export class ClienteFallido extends Error {
   }
 }
 
-type Endpoint = 'mesa' | 'sesion' | 'carta' | 'llamar-mozo' | 'pedido'
+type Endpoint = 'mesa' | 'sesion' | 'carta' | 'llamar-mozo' | 'pedido' | 'estado' | 'cancelar'
 
 function detalleDe(err: ApiError): string | undefined {
   const cuerpo = err.detalle as ProblemDetail | undefined
@@ -56,6 +88,11 @@ export function traducirError(err: unknown, endpoint?: Endpoint): FalloCliente {
     if (err.status === 400) return { motivo: 'pedido-invalido' }
     // El 409 es la cuenta cerrada o un plato que ya no está, y el status no los distingue: se muestra el detail del back.
     if (err.status === 409) return { motivo: 'pedido-en-conflicto', detalle: detalleDe(err) }
+    return { motivo: 'red' }
+  }
+  if (endpoint === 'estado' || endpoint === 'cancelar') {
+    if (err.status === 403) return { motivo: 'sesion-invalida' }
+    if (endpoint === 'cancelar' && err.status === 409) return { motivo: 'cancelar-en-conflicto', detalle: detalleDe(err) }
     return { motivo: 'red' }
   }
   if (err.status === 404) return { motivo: 'mesa-inexistente' }
@@ -104,8 +141,11 @@ export function entrarALaMesa(tokenQR: string): Promise<SesionMesa> {
   return entrada
 }
 
-export function obtenerCarta(tokenQR: string, etiqueta?: string): Promise<Carta> {
-  const filtro = etiqueta ? `?etiqueta=${encodeURIComponent(etiqueta)}` : ''
+// Con varias etiquetas va un ?etiqueta= por cada una, y el back devuelve los platos que tienen todas (HU-01).
+export function obtenerCarta(tokenQR: string, etiquetas: string[] = []): Promise<Carta> {
+  const params = new URLSearchParams()
+  etiquetas.forEach((e) => params.append('etiqueta', e))
+  const filtro = etiquetas.length > 0 ? `?${params}` : ''
   return conTraduccion('carta', () => api<Carta>(`${rutaMesa(tokenQR)}/menu${filtro}`))
 }
 
@@ -123,6 +163,24 @@ export async function enviarPedido(tokenSesion: string, pedido: PedidoAEnviar): 
       method: 'POST',
       headers: { 'X-Session-Token': tokenSesion },
       body: JSON.stringify(pedido),
+    }),
+  )
+}
+
+// El estado completo de la cuenta de esta sesión. Se pide al entrar a P-03, en cada reconexión y con cada
+// aviso del WebSocket: la pantalla nunca se arma sumando eventos (RNF-08).
+export function obtenerEstadoDeSesion(tokenSesion: string): Promise<EstadoDeSesion> {
+  return conTraduccion('estado', () =>
+    api<EstadoDeSesion>('/public/sesion/estado', { headers: { 'X-Session-Token': tokenSesion } }),
+  )
+}
+
+// Solo mientras está en PENDIENTE_APROBACION y si es de esta sesión. Si Caja lo aprobó antes, 409.
+export async function cancelarPedido(tokenSesion: string, pedidoId: number): Promise<void> {
+  await conTraduccion('cancelar', () =>
+    api<unknown>(`/public/pedidos/${pedidoId}/cancelar`, {
+      method: 'POST',
+      headers: { 'X-Session-Token': tokenSesion },
     }),
   )
 }

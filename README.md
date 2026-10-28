@@ -43,15 +43,15 @@ No hay tests automáticos. Cada cambio se prueba con `npm run build` y un recorr
 ```
 src/
 ├── roles/        una carpeta por rol, cada una con paginas/ y componentes/
-│   ├── cliente/      la carta, el carrito y el pedido (se entra por /mesa/{token})
+│   ├── cliente/      la carta, el carrito, el pedido y el seguimiento (se entra por /mesa/{token})
 │   ├── acceso/       el login de todo el personal y el primer ingreso
 │   └── caja, cocina, mozo, admin, plataforma   todavía vacías
 ├── compartido/
-│   ├── api/          http.ts (el único que llama a fetch), auth.ts (login y sesión) y cliente.ts (mesa, carta, pedido)
+│   ├── api/          http.ts (el único que llama a fetch), auth.ts (login y sesión) y cliente.ts (mesa, carta, pedido, estado de la cuenta y cancelar)
 │   ├── sesion/       quién está logueado, las rutas protegidas y el token de la mesa del celular
-│   ├── ws/           la conexión STOMP a /ws (todavía no la usa ninguna pantalla)
+│   ├── ws/           la conexión STOMP a /ws (la usa el seguimiento del cliente, P-03)
 │   ├── tipos/        los tipos del contrato
-│   ├── ui/           piezas que usan varios roles
+│   ├── ui/           piezas que usan varios roles, y iconos/ con los SVG exportados del Mockup
 │   ├── utils/        funciones chicas
 │   └── estilos/      index.css, con los colores como tokens de Tailwind
 └── mocks/            vacía: los mocks del login están en compartido/api/auth.ts
@@ -59,7 +59,12 @@ src/
 
 Rutas (`src/App.tsx`):
 
-- `/mesa/{tokenQR}`: el cliente.
+- `/mesa/{tokenQR}`: el cliente. Es la carta (P-01).
+- `/mesa/{tokenQR}/pedido`: el carrito (P-02). Solo para el iniciador.
+- `/mesa/{tokenQR}/cuenta`: "Mi cuenta" (P-03), con el seguimiento de los pedidos y cancelar uno que está en
+  espera. Solo para el iniciador.
+
+  En modo lectura (un celular que no abrió la cuenta), `/pedido` y `/cuenta` vuelven a la carta.
 - `/staff/{tokenStaff}`: el login con PIN de Mozo, Caja y Cocina. `/staff/{tokenStaff}/elegir-pin` es el primer ingreso.
 - `/admin/login`: el login con email del Admin y del Gerente/Dueño. `/admin/cambiar-contrasena` es su primer ingreso.
 - `/mozo`, `/caja`, `/cocina` y `/admin`: una pantalla provisoria que muestra quién entró y tiene "Cerrar sesión".
@@ -87,8 +92,18 @@ Eze. Acá va solo lo que el front tiene que respetar.
 - La mesa se identifica con el `tokenQR` de la URL. El número de mesa nunca viaja.
 - El celular se identifica con el header `X-Session-Token`. El `tokenSesion` se guarda en `localStorage`,
   con la clave `chitgo-mesa:{tokenQR}`, una por mesa.
-- Cada pedido lleva un `uuidCliente`, que se genera al armarlo y se reusa solo en los reintentos de ese mismo
-  pedido. Así, si se corta la red o se toca dos veces, el back no crea otro.
+- El carrito se guarda en `localStorage`, con la clave `chitgo-carrito:{tokenQR}`, así aguanta una recarga y el
+  ir y venir entre la carta y el pedido. Va atado al `tokenSesion`: si el back devuelve otra sesión, el carrito
+  viejo se descarta. Se vacía cuando el pedido sale bien.
+- Cada pedido lleva un `uuidCliente`, que se guarda junto con el carrito y se reusa solo en los reintentos de
+  ese mismo pedido, también después de recargar. Si el carrito cambia, se genera otro. Así, si se corta la red o
+  se toca dos veces, el back no crea otro.
+- "Mi cuenta" (P-03) pide el estado completo a `GET /api/v1/public/sesion/estado`, con `X-Session-Token`, al
+  entrar. Después se mantiene al día por STOMP: se conecta a `/ws` con el `tokenSesion` en el header
+  `tokenSesion` del frame `CONNECT` y se suscribe a `/user/queue/pedido`. Un aviso solo dice que algo cambió:
+  el front vuelve a pedir el estado completo, y lo mismo hace en cada reconexión (la conexión reintenta sola
+  cada 3 segundos). La pantalla nunca se arma con los eventos. `src/compartido/ws/conexion.ts` tiene una sola
+  conexión para toda la app.
 
 ## Para probar en local
 
@@ -116,6 +131,16 @@ Dos cosas de la seed para tener en cuenta:
 - La seed borra todos los datos de negocio y los carga de nuevo. Se pierden las cuentas y los pedidos que
   hayas probado a mano.
 
+Y dos del back para probar el cliente:
+
+- "Llamar al mozo" da `404`, porque ese endpoint es del Sprint 2. La pantalla muestra el error.
+- En "Mi cuenta", un pedido recién mandado queda "En espera". Para verlo pasar a aprobado, en preparación y
+  listo hay que aprobarlo como Caja (`/caja/pedidos/{id}/aprobar`) y moverlo como Cocina
+  (`/cocina/pedidos/{id}/en-preparacion` y `/listo`) con curl, porque la pantalla de Caja todavía no anda. Para
+  entrar: `GET /api/v1/auth/sesion` deja la cookie `XSRF-TOKEN`, y después `POST /api/v1/auth/pin` con
+  `{tokenStaff, usuarioId, pin}`. Los `usuarioId` salen de `GET /api/v1/public/staff/{tokenStaff}` y los PIN, de
+  la tabla del README del back. Todos los `POST` llevan el header `X-XSRF-TOKEN` con el valor de esa cookie.
+
 ## Diseño
 
 La dirección visual está en `DESIGN.md`. Los colores son la paleta "Chocolate y Menta", decidida el 09/10, y
@@ -130,7 +155,12 @@ están como tokens de Tailwind en `src/compartido/estilos/index.css`. Los colore
 | `texto` | `#2A211D` | Texto principal |
 | `secundario` | `#6E635C` | Texto de apoyo y bordes de los campos |
 | `primario` | `#4B3027` | Botón principal, marca y enlaces |
+| `texto-boton` | `#FFFFFF` | Texto sobre `primario` |
 | `suave` | `#DCEDE4` | Resalte suave, como el hover |
+
+Los títulos van en Fraunces SemiBold y el cliente usa Inter para todo lo demás (el login sigue con la fuente
+del sistema). Las dos se cargan desde Google Fonts en `index.html`: sin conexión caen en Georgia y en la fuente
+del sistema.
 
 ## Ramas
 
@@ -141,5 +171,6 @@ están como tokens de Tailwind en `src/compartido/estilos/index.css`. Los colore
 - La PWA: manifest, íconos y un service worker liviano que solo cachea archivos estáticos (sin modo offline
   para pedidos). Hoy `public/` está vacía.
 - Las pantallas de Mozo, Caja, Cocina, Admin y Plataforma.
-- Probar desde el celular con la IP de la compu. El pedido no sale por http con IP, porque
-  `crypto.randomUUID()` solo existe en HTTPS o en `localhost`, y Vite escucha solo en `localhost`.
+- Probar desde el celular con la IP de la compu. Vite escucha solo en `localhost`, y por http con IP no existe
+  `crypto.randomUUID()`: el carrito arma la clave del pedido con `crypto.getRandomValues` en su lugar, pero eso
+  todavía no se probó en un celular.

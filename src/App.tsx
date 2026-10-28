@@ -7,11 +7,15 @@ import LoginAdmin from './roles/acceso/paginas/LoginAdmin'
 import LoginPin from './roles/acceso/paginas/LoginPin'
 import PantallaProvisoria from './roles/acceso/paginas/PantallaProvisoria'
 import { PaginaMenuCliente } from './roles/cliente/paginas/PaginaMenuCliente'
+import PaginaPedidoCliente from './roles/cliente/paginas/PaginaPedidoCliente'
+import PaginaCuentaCliente from './roles/cliente/paginas/PaginaCuentaCliente'
 
 export default function App() {
   return (
     <Routes>
       <Route path="/mesa/:token" element={<PaginaMenuCliente />} />
+      <Route path="/mesa/:token/pedido" element={<PaginaPedidoCliente />} />
+      <Route path="/mesa/:token/cuenta" element={<PaginaCuentaCliente />} />
       <Route path="/staff/:token" element={<LoginPin />} />
       <Route path="/staff/:token/elegir-pin" element={<ElegirPin />} />
       <Route path="/admin/login" element={<LoginAdmin />} />
