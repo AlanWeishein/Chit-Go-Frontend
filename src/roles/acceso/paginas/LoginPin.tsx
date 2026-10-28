@@ -19,11 +19,19 @@ import FormularioMozo from '../componentes/FormularioMozo'
 import iconoFlechaDer from '../../../compartido/ui/iconos/arrow-r.svg'
 import iconoFlechaIzq from '../../../compartido/ui/iconos/arrow-l.svg'
 import iconoFlechaIzqPrimario from '../../../compartido/ui/iconos/arrow-l-primario.svg'
+import iconoFlechaChevron from '../../../compartido/ui/iconos/chevron-r.svg'
 import MarcoAcceso, { botonPrincipal, botonSecundario, columna, enlace } from '../componentes/MarcoAcceso'
 import SesionAbierta from '../componentes/SesionAbierta'
 import TecladoPin from '../componentes/TecladoPin'
 import { textoDeFallo } from '../componentes/textoDeFallo'
 import VisorPin, { PIN_MAX, PIN_MIN } from '../componentes/VisorPin'
+
+// Las iniciales del círculo de la lista: la primera letra de las dos primeras palabras ("Juan Pérez" da "JP"),
+// o las dos primeras letras si el nombre es una sola palabra ("Juan" da "JU").
+function iniciales(nombre: string) {
+  const palabras = nombre.trim().split(/\s+/)
+  return (palabras.length > 1 ? palabras[0][0] + palabras[1][0] : nombre.trim().slice(0, 2)).toUpperCase()
+}
 
 export default function LoginPin() {
   const { token = '' } = useParams()
@@ -86,11 +94,13 @@ export default function LoginPin() {
 
   const enPin = elegido !== null && !pidiendoContrasena
   const bloqueado = enPin && fallo?.motivo === 'bloqueado'
-  const bajada = !enPin
-    ? (staff?.nombreLocal ?? 'Ingreso para el personal')
-    : bloqueado
-      ? `Hola, ${elegido.nombre}.`
-      : `Hola, ${elegido.nombre}. Ingresá tu PIN para empezar el turno.`
+  const bajada = pidiendoContrasena
+    ? 'Cada 7 días te pedimos tu usuario y tu contraseña. El resto de los días entrás solo con tu PIN.'
+    : !elegido
+      ? '¿Quién empieza el turno? Tocá tu nombre y después ingresá tu PIN.'
+      : bloqueado
+        ? `Hola, ${elegido.nombre}.`
+        : `Hola, ${elegido.nombre}. Ingresá tu PIN para empezar el turno.`
   // P-04d: el título del aviso es la primera oración del texto del back, y debajo va el resto.
   const [tituloBloqueo, ...restoBloqueo] = fallo ? textoDeFallo(fallo).split(/(?<=\.)\s/) : []
 
@@ -111,9 +121,8 @@ export default function LoginPin() {
         />
       ) : !elegido ? (
         <section>
-          <h2 className="mb-3 text-sm font-medium">¿Quién sos?</h2>
-          {staff === null && !fallo && <p className="text-sm text-secundario">Cargando…</p>}
-          <ul className="grid grid-cols-2 gap-3">
+          {staff === null && !fallo && <p className="text-center text-[13px] text-secundario">Cargando…</p>}
+          <ul className="flex flex-col gap-2.5">
             {staff?.usuarios.map((u) => (
               <li key={u.id}>
                 <button
@@ -122,13 +131,22 @@ export default function LoginPin() {
                     setElegido(u)
                     setFallo(null)
                   }}
-                  className="w-full rounded-xl border border-secundario bg-fondo py-4 font-semibold hover:bg-suave"
+                  className="flex min-h-[60px] w-full items-center gap-3 rounded-[14px] border border-secundario bg-fondo py-[11px] pl-[13px] pr-[15px] text-left hover:bg-tarjeta"
                 >
-                  {u.nombre}
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-linea text-[13px] font-semibold">
+                    {iniciales(u.nombre)}
+                  </span>
+                  <span className="min-w-0 flex-1 break-words text-[15px] font-semibold">{u.nombre}</span>
+                  <img src={iconoFlechaChevron} alt="" width={20} height={20} className="shrink-0" />
                 </button>
               </li>
             ))}
           </ul>
+          {staff !== null && (
+            <p className="mx-auto mt-[18px] max-w-[300px] text-center text-[13px] text-secundario">
+              Solo aparece el personal activo del local. El Admin entra con su email.
+            </p>
+          )}
         </section>
       ) : bloqueado ? (
         <div className={columna}>

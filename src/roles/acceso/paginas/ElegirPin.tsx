@@ -8,8 +8,9 @@ import { elegirCredencial, obtenerSesion, traducirError, type FalloLogin } from 
 import { useSesion } from '../../../compartido/sesion/SesionContext'
 import { entraConEmail, rutaInicial } from '../../../compartido/sesion/rutas'
 import AvisoDeFallo from '../componentes/AvisoDeFallo'
-import CampoContrasena, { PASSWORD_MAX, PASSWORD_MIN } from '../componentes/CampoContrasena'
+import CampoContrasena, { campoFijo, CampoConRotulo, PASSWORD_MAX, PASSWORD_MIN } from '../componentes/CampoContrasena'
 import iconoFlechaDer from '../../../compartido/ui/iconos/arrow-r.svg'
+import iconoUsuario from '../../../compartido/ui/iconos/user.svg'
 import MarcoAcceso, { botonPrincipal, columna, enlace } from '../componentes/MarcoAcceso'
 import TecladoPin from '../componentes/TecladoPin'
 import { textoDeFallo } from '../componentes/textoDeFallo'
@@ -112,14 +113,17 @@ export default function ElegirPin() {
   const conBoton = fallo?.motivo === 'credencial-elegida' || fallo?.motivo === 'sesion-vencida'
   const enPin = !conBoton && actual !== 'contrasena'
   const avisoDelPin = enPin && textoDelAviso ? <AvisoDeFallo>{textoDelAviso}</AvisoDeFallo> : null
-  // P-30, P-30b y el paso de repetir llevan sus instrucciones en la bajada; el resto, el nombre del local.
-  const bajada = !enPin
-    ? (sesion.local?.nombre ?? 'Ingreso para el personal')
-    : actual === 'repetir'
-      ? 'Repetí el PIN. Para confirmarlo.'
-      : aviso === NO_COINCIDEN
-        ? 'Elegí tu PIN otra vez y repetilo para confirmarlo.'
-        : 'Elegí tu PIN. El que te dio el Admin era provisorio.'
+  // P-32b, P-30, P-30b y el paso de repetir llevan sus instrucciones en la bajada; el resto, el nombre del local.
+  const bajada =
+    actual === 'contrasena' && !conBoton
+      ? `La contraseña que te dio el Admin era provisoria. Elegí una propia, de ${PASSWORD_MIN} a ${PASSWORD_MAX} caracteres.`
+      : !enPin
+        ? (sesion.local?.nombre ?? 'Ingreso para el personal')
+        : actual === 'repetir'
+          ? 'Repetí el PIN. Para confirmarlo.'
+          : aviso === NO_COINCIDEN
+            ? 'Elegí tu PIN otra vez y repetilo para confirmarlo.'
+            : 'Elegí tu PIN. El que te dio el Admin era provisorio.'
 
   return (
     <MarcoAcceso bajada={bajada} ilustracion={!(enPin && textoDelAviso)}>
@@ -130,13 +134,18 @@ export default function ElegirPin() {
           {fallo.motivo === 'credencial-elegida' ? 'Seguir' : 'Volver a entrar'}
         </button>
       ) : actual === 'contrasena' ? (
-        <form onSubmit={seguirConPin} className="space-y-4">
-          <div>
-            <h2 className="text-sm font-medium">Hola, {sesion.nombre}. Elegí tu contraseña.</h2>
-            <p className="mt-1 text-xs text-secundario">
-              La que te dio el Admin era provisoria. La tuya tiene que ser distinta. Después elegís tu PIN.
-            </p>
-          </div>
+        // P-32b. La sesión no trae el nombre de usuario (juan), así que el campo fijo muestra el nombre.
+        <form onSubmit={seguirConPin} className="flex w-full flex-col gap-[18px]">
+          <CampoConRotulo id="usuario-fijo" etiqueta="Usuario" icono={iconoUsuario}>
+            <input
+              id="usuario-fijo"
+              type="text"
+              readOnly
+              autoComplete="username"
+              value={sesion.nombre}
+              className={campoFijo}
+            />
+          </CampoConRotulo>
           <CampoContrasena
             id="password-nueva"
             rotulo="Contraseña nueva"
@@ -144,25 +153,22 @@ export default function ElegirPin() {
             onCambio={setPassword}
             autoComplete="new-password"
           />
-          <div>
-            <CampoContrasena
-              id="password-repetida"
-              rotulo="Repetí la contraseña"
-              valor={passwordRepetida}
-              onCambio={setPasswordRepetida}
-              autoComplete="new-password"
-            />
-            <p className="mt-1 text-xs text-secundario">
-              De {PASSWORD_MIN} a {PASSWORD_MAX} caracteres.
-            </p>
-          </div>
+          <CampoContrasena
+            id="password-repetida"
+            rotulo="Repetila"
+            valor={passwordRepetida}
+            onCambio={setPasswordRepetida}
+            autoComplete="new-password"
+          />
           <button
             type="submit"
             disabled={password.length < PASSWORD_MIN || passwordRepetida === ''}
             className={botonPrincipal}
           >
-            Seguir
+            <img src={iconoFlechaDer} alt="" width={20} height={20} />
+            Guardar y seguir
           </button>
+          <p className="text-center text-[13px] text-secundario">Desde ahora te la pedimos cada 7 días.</p>
         </form>
       ) : (
         <form onSubmit={actual === 'pin' ? seguirARepetir : guardar} className={columna}>
