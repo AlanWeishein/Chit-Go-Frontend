@@ -2,7 +2,7 @@
 // El mozo elige primero la contraseña y después el PIN, y las dos van juntas en un solo POST /auth/credencial.
 // El back todavía no avisa si la contraseña del mozo es provisoria (contrasena_provisoria, 20/10): por ahora se
 // le pide siempre que tenga la marca. Cuando el back la exponga, P-32b va solo si es provisoria.
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { elegirCredencial, obtenerSesion, traducirError, type FalloLogin } from '../../../compartido/api/auth'
 import { useSesion } from '../../../compartido/sesion/SesionContext'
@@ -12,6 +12,7 @@ import CampoContrasena, { campoFijo, CampoConRotulo, PASSWORD_MAX, PASSWORD_MIN 
 import iconoFlechaDer from '../../../compartido/ui/iconos/arrow-r.svg'
 import iconoUsuario from '../../../compartido/ui/iconos/user.svg'
 import MarcoAcceso, { botonPrincipal, columna, enlace } from '../componentes/MarcoAcceso'
+import MarcoDosPaneles from '../componentes/MarcoDosPaneles'
 import TecladoPin from '../componentes/TecladoPin'
 import { textoDeFallo } from '../componentes/textoDeFallo'
 import VisorPin, { PIN_MAX, PIN_MIN } from '../componentes/VisorPin'
@@ -26,7 +27,11 @@ export default function ElegirPin() {
   const { sesion, cargando, guardarSesion, cerrar } = useSesion()
 
   const esMozo = sesion?.rol === 'MOZO'
+  const esCaja = sesion?.rol === 'CAJA'
   const primerPaso: Paso = esMozo ? 'contrasena' : 'pin'
+  // Al cerrar sesión la sesión queda en null y el rol se pierde: se recuerda para volver a la entrada de Caja.
+  const ultimoRol = useRef(sesion?.rol)
+  if (sesion) ultimoRol.current = sesion.rol
 
   const [paso, setPaso] = useState<Paso | null>(null)
   const [password, setPassword] = useState('')
@@ -38,7 +43,10 @@ export default function ElegirPin() {
   const [enviando, setEnviando] = useState(false)
 
   if (cargando) return <p className="p-6 text-secundario">Cargando…</p>
-  if (!sesion) return <Navigate to={`/staff/${encodeURIComponent(token)}`} replace />
+  if (!sesion) {
+    const login = `/staff/${encodeURIComponent(token)}`
+    return <Navigate to={ultimoRol.current === 'CAJA' ? `${login}/caja` : login} replace />
+  }
   if (entraConEmail(sesion.rol)) return <Navigate to="/admin/cambiar-contrasena" replace />
   if (!sesion.debeCambiarCredencial) return <Navigate to={rutaInicial(sesion.rol)} replace />
 
@@ -125,8 +133,8 @@ export default function ElegirPin() {
             ? 'Elegí tu PIN otra vez y repetilo para confirmarlo.'
             : 'Elegí tu PIN. El que te dio el Admin era provisorio.'
 
-  return (
-    <MarcoAcceso bajada={bajada} ilustracion={!(enPin && textoDelAviso)}>
+  const cuerpo = (
+    <>
       {textoDelAviso && !enPin && <AvisoDeFallo className="mb-4">{textoDelAviso}</AvisoDeFallo>}
 
       {conBoton ? (
@@ -171,7 +179,9 @@ export default function ElegirPin() {
           <p className="text-center text-[13px] text-secundario">Desde ahora te la pedimos cada 7 días.</p>
         </form>
       ) : (
-        <form onSubmit={actual === 'pin' ? seguirARepetir : guardar} className={columna}>
+        <form onSubmit={actual === 'pin' ? seguirARepetir : guardar} className={`${columna} ${esCaja ? 'mx-auto max-w-[288px]' : ''}`}>
+          {esCaja && <h1 className="titulo text-center text-xl">{actual === 'pin' ? 'Elegí tu PIN' : 'Repetí tu PIN'}</h1>}
+
           <VisorPin pin={actual === 'pin' ? pin : pinRepetido} />
 
           {avisoDelPin}
@@ -203,6 +213,26 @@ export default function ElegirPin() {
           Cerrar sesión
         </button>
       </div>
+    </>
+  )
+
+  // P-31: la tablet de Caja, con los dos paneles. Cocina y el mozo siguen con P-30.
+  if (esCaja) {
+    return (
+      <MarcoDosPaneles
+        variante="caja"
+        titulo="Antes de abrir la caja, elegí tu PIN."
+        bajada="El que te dio el Admin era provisorio. El tuyo identifica quién aprueba pedidos y cierra cuentas."
+        pie={sesion.local ? `Tablet del mostrador · ${sesion.local.nombre}` : undefined}
+      >
+        {cuerpo}
+      </MarcoDosPaneles>
+    )
+  }
+
+  return (
+    <MarcoAcceso bajada={bajada} ilustracion={!(enPin && textoDelAviso)}>
+      {cuerpo}
     </MarcoAcceso>
   )
 }

@@ -9,7 +9,9 @@ import { leerTokenStaff } from './tokenStaff'
 function rutaDeLogin(roles: Rol[]): string {
   if (roles.every((r) => r === 'ADMIN' || r === 'GERENTE_DUENO')) return '/admin/login'
   const token = leerTokenStaff()
-  return token ? `/staff/${encodeURIComponent(token)}` : '/' // sin token conocido no sabemos de qué local es
+  if (!token) return '/' // sin token conocido no sabemos de qué local es
+  const login = `/staff/${encodeURIComponent(token)}`
+  return roles.every((r) => r === 'CAJA') ? `${login}/caja` : login // la tablet de Caja vuelve a P-22
 }
 
 // Comodidad de navegación: el permiso de verdad lo valida el servidor en cada endpoint.

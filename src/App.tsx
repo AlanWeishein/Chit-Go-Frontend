@@ -17,6 +17,7 @@ export default function App() {
       <Route path="/mesa/:token/pedido" element={<PaginaPedidoCliente />} />
       <Route path="/mesa/:token/cuenta" element={<PaginaCuentaCliente />} />
       <Route path="/staff/:token" element={<LoginPin />} />
+      <Route path="/staff/:token/caja" element={<LoginPin caja />} />
       <Route path="/staff/:token/elegir-pin" element={<ElegirPin />} />
       <Route path="/admin/login" element={<LoginAdmin />} />
       <Route path="/admin/cambiar-contrasena" element={<CambiarContrasena />} />

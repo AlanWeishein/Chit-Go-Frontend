@@ -1,14 +1,18 @@
 // P-29: el Admin y el Gerente/Dueño eligen su contraseña en el primer ingreso. Ruta: /admin/cambiar-contrasena
-// La sesión no trae el email, así que en vez del "email fijo" de P-29 se muestra el nombre.
+// La sesión no trae el email, así que en vez del "Email (es tu usuario)" de P-29 se muestra el nombre.
 import { useState, type FormEvent } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { elegirCredencial, obtenerSesion, traducirError, type FalloLogin } from '../../../compartido/api/auth'
 import { useSesion } from '../../../compartido/sesion/SesionContext'
 import { leerTokenStaff } from '../../../compartido/sesion/tokenStaff'
 import { entraConEmail, rutaDeEntrada, rutaInicial } from '../../../compartido/sesion/rutas'
+import iconoFlechaDer from '../../../compartido/ui/iconos/arrow-r.svg'
+import iconoUsuario from '../../../compartido/ui/iconos/user.svg'
 import AvisoDeFallo from '../componentes/AvisoDeFallo'
-import CampoContrasena, { PASSWORD_MAX, PASSWORD_MIN } from '../componentes/CampoContrasena'
-import MarcoAcceso, { botonPrincipal, enlace } from '../componentes/MarcoAcceso'
+import CampoContrasena, { campoFijo, CampoConRotulo, PASSWORD_MAX, PASSWORD_MIN } from '../componentes/CampoContrasena'
+import { botonPrincipal, enlace } from '../componentes/MarcoAcceso'
+import MarcoDosPaneles, { EncabezadoDelFormulario } from '../componentes/MarcoDosPaneles'
+import NotaInformativa from '../componentes/NotaInformativa'
 import { textoDeFallo } from '../componentes/textoDeFallo'
 
 export default function CambiarContrasena() {
@@ -60,55 +64,76 @@ export default function CambiarContrasena() {
   }
 
   const textoDelAviso = aviso ?? (fallo ? textoDeFallo(fallo) : null)
+  const local = sesion.local?.nombre
+  const esAdmin = sesion.rol === 'ADMIN'
 
   return (
-    <MarcoAcceso bajada="Ingreso para Admin y Dueño">
-      {textoDelAviso && <AvisoDeFallo className="mb-4">{textoDelAviso}</AvisoDeFallo>}
+    <MarcoDosPaneles
+      variante="admin"
+      titulo="Primero, tu contraseña"
+      bajada={
+        esAdmin && local
+          ? `La que te dio el Gerente/Dueño es provisoria. Elegí una tuya para entrar al panel de ${local}.`
+          : 'La que te dieron es provisoria. Elegí una tuya para entrar al panel.'
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <EncabezadoDelFormulario
+          titulo="Cambiá tu contraseña"
+          bajada={`Primer ingreso · ${esAdmin && local ? `Admin de ${local}` : 'Gerente/Dueño'}`}
+        />
 
-      {fallo?.motivo === 'credencial-elegida' || fallo?.motivo === 'sesion-vencida' ? (
-        <button type="button" onClick={actualizarSesion} className={botonPrincipal}>
-          {fallo.motivo === 'credencial-elegida' ? 'Seguir' : 'Volver a entrar'}
-        </button>
-      ) : (
-        <form onSubmit={guardar} className="space-y-4">
-          <div>
-            <h2 className="text-sm font-medium">Hola, {sesion.nombre}. Elegí tu contraseña.</h2>
-            <p className="mt-1 text-xs text-secundario">
-              La que te dieron era provisoria. La tuya tiene que ser distinta.
-            </p>
-          </div>
-          <CampoContrasena
-            id="password-nueva"
-            rotulo="Contraseña nueva"
-            valor={password}
-            onCambio={setPassword}
-            autoComplete="new-password"
-            deshabilitado={enviando}
-          />
-          <div>
+        {textoDelAviso && <AvisoDeFallo>{textoDelAviso}</AvisoDeFallo>}
+
+        {fallo?.motivo === 'credencial-elegida' || fallo?.motivo === 'sesion-vencida' ? (
+          <button type="button" onClick={actualizarSesion} className={botonPrincipal}>
+            {fallo.motivo === 'credencial-elegida' ? 'Seguir' : 'Volver a entrar'}
+          </button>
+        ) : (
+          <form onSubmit={guardar} className="flex flex-col gap-4">
+            <CampoConRotulo id="usuario-fijo" etiqueta="Usuario" icono={iconoUsuario}>
+              <input
+                id="usuario-fijo"
+                type="text"
+                readOnly
+                autoComplete="username"
+                value={sesion.nombre}
+                className={campoFijo}
+              />
+            </CampoConRotulo>
+            <CampoContrasena
+              id="password-nueva"
+              rotulo="Contraseña nueva"
+              valor={password}
+              onCambio={setPassword}
+              autoComplete="new-password"
+              deshabilitado={enviando}
+            />
             <CampoContrasena
               id="password-repetida"
-              rotulo="Repetí la contraseña"
+              rotulo="Repetir contraseña"
               valor={passwordRepetida}
               onCambio={setPasswordRepetida}
               autoComplete="new-password"
               deshabilitado={enviando}
             />
-            <p className="mt-1 text-xs text-secundario">
-              De {PASSWORD_MIN} a {PASSWORD_MAX} caracteres.
+            <p className="text-[13px] text-secundario">
+              De {PASSWORD_MIN} a {PASSWORD_MAX} caracteres y distinta de la provisoria.
             </p>
-          </div>
-          <button type="submit" disabled={enviando || !valido} className={botonPrincipal}>
-            {enviando ? 'Guardando…' : 'Guardar y entrar'}
-          </button>
-        </form>
-      )}
+            <button type="submit" disabled={enviando || !valido} className={botonPrincipal}>
+              <img src={iconoFlechaDer} alt="" width={20} height={20} />
+              {enviando ? 'Guardando…' : 'Guardar y entrar'}
+            </button>
+            <NotaInformativa>Te lo pedimos una sola vez. Desde ahora entrás con tu email y esta contraseña.</NotaInformativa>
+          </form>
+        )}
 
-      <div className="mt-4 text-center">
-        <button type="button" onClick={() => cerrar().catch(() => undefined)} className={enlace}>
-          Cerrar sesión
-        </button>
+        <div className="flex justify-center">
+          <button type="button" onClick={() => cerrar().catch(() => undefined)} className={enlace}>
+            Cerrar sesión
+          </button>
+        </div>
       </div>
-    </MarcoAcceso>
+    </MarcoDosPaneles>
   )
 }

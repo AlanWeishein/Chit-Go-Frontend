@@ -1,17 +1,19 @@
-// P-12: login con email y contraseña para Admin y Gerente/Dueño. Ruta: /admin/login
+// P-12 / P-12b: login con email y contraseña para Admin y Gerente/Dueño. Ruta: /admin/login
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { loginAdmin, traducirError, type FalloLogin } from '../../../compartido/api/auth'
 import { useSesion } from '../../../compartido/sesion/SesionContext'
 import { rutaDeEntrada } from '../../../compartido/sesion/rutas'
 import { leerTokenStaff } from '../../../compartido/sesion/tokenStaff'
+import iconoFlechaDer from '../../../compartido/ui/iconos/arrow-r.svg'
+import iconoMail from '../../../compartido/ui/iconos/mail.svg'
 import AvisoDeFallo from '../componentes/AvisoDeFallo'
-import { campo } from '../componentes/CampoContrasena'
+import CampoContrasena, { campoConIcono, CampoConRotulo, PASSWORD_MAX, PASSWORD_MIN } from '../componentes/CampoContrasena'
+import { botonPrincipal } from '../componentes/MarcoAcceso'
+import MarcoDosPaneles, { EncabezadoDelFormulario } from '../componentes/MarcoDosPaneles'
+import NotaInformativa from '../componentes/NotaInformativa'
 import SesionAbierta from '../componentes/SesionAbierta'
 import { textoDeFallo } from '../componentes/textoDeFallo'
-
-const PASSWORD_MIN = 8
-const PASSWORD_MAX = 64
 
 export default function LoginAdmin() {
   const navigate = useNavigate()
@@ -23,7 +25,6 @@ export default function LoginAdmin() {
   const [enviando, setEnviando] = useState(false)
 
   if (sesion) return <SesionAbierta sesion={sesion} destino={rutaDeEntrada(sesion, leerTokenStaff())} />
-
 
   const valido = email.trim() !== '' && password.length >= PASSWORD_MIN && password.length <= PASSWORD_MAX
 
@@ -45,55 +46,42 @@ export default function LoginAdmin() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-fondo p-6 font-inter text-texto">
-      <div className="w-full max-w-sm">
-        <h1 className="text-center text-3xl font-bold text-primario">Chit&Go</h1>
-        <p className="mt-1 text-center text-sm text-secundario">Ingreso para Admin y Dueño</p>
+    <MarcoDosPaneles
+      variante="admin"
+      titulo="Tu local, en orden."
+      bajada="Menú, mesas, empleados, reportes y auditoría de tu local."
+    >
+      <form onSubmit={enviar} className="flex flex-col gap-4">
+        <EncabezadoDelFormulario titulo="Iniciar sesión" bajada="Acceso para Admin y Gerente/Dueño" />
 
-        <form onSubmit={enviar} className="mt-6 space-y-4 rounded-2xl border border-linea bg-tarjeta p-6">
-          {fallo && <AvisoDeFallo>{textoDeFallo(fallo)}</AvisoDeFallo>}
+        {fallo && <AvisoDeFallo>{textoDeFallo(fallo)}</AvisoDeFallo>}
 
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={campo}
-            />
-          </div>
+        <CampoConRotulo id="email" etiqueta="Email" icono={iconoMail}>
+          <input
+            id="email"
+            type="email"
+            autoComplete="username"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={campoConIcono}
+          />
+        </CampoConRotulo>
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium">
-              Contraseña
-            </label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              maxLength={PASSWORD_MAX}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={campo}
-            />
-            <p className="mt-1 text-xs text-secundario">
-              De {PASSWORD_MIN} a {PASSWORD_MAX} caracteres.
-            </p>
-          </div>
+        <CampoContrasena
+          id="password"
+          rotulo="Contraseña"
+          valor={password}
+          onCambio={setPassword}
+          autoComplete="current-password"
+        />
 
-          <button
-            type="submit"
-            disabled={enviando || !valido}
-            className="w-full rounded-xl bg-primario py-3 text-lg font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {enviando ? 'Ingresando…' : 'Ingresar'}
-          </button>
-        </form>
-      </div>
-    </main>
+        <button type="submit" disabled={enviando || !valido} className={botonPrincipal}>
+          <img src={iconoFlechaDer} alt="" width={20} height={20} />
+          {enviando ? 'Ingresando…' : 'Ingresar'}
+        </button>
+
+        <NotaInformativa>¿Sos Mozo, Caja o Cocina? Entrás con tu PIN desde la app del salón.</NotaInformativa>
+      </form>
+    </MarcoDosPaneles>
   )
 }
