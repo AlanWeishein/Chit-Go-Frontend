@@ -7,13 +7,13 @@ import LoginAdmin from './roles/acceso/paginas/LoginAdmin'
 import LoginPin from './roles/acceso/paginas/LoginPin'
 import PantallaProvisoria from './roles/acceso/paginas/PantallaProvisoria'
 import { PaginaMenuCliente } from './roles/cliente/paginas/PaginaMenuCliente'
+import PaginaPedidoCliente from './roles/cliente/paginas/PaginaPedidoCliente'
 
 export default function App() {
   return (
     <Routes>
       <Route path="/mesa/:token" element={<PaginaMenuCliente />} />
-      {/* P-02 llega en la tarea 2 de la ST-07 */}
-      <Route path="/mesa/:token/pedido" element={<Pendiente titulo="Tu pedido" />} />
+      <Route path="/mesa/:token/pedido" element={<PaginaPedidoCliente />} />
       <Route path="/staff/:token" element={<LoginPin />} />
       <Route path="/staff/:token/elegir-pin" element={<ElegirPin />} />
       <Route path="/admin/login" element={<LoginAdmin />} />

@@ -1,34 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { Carta, Plato } from '../../../compartido/tipos/menu';
-import { ItemCarrito } from '../../../compartido/tipos/carrito';
-import {
-  consultarMesa,
-  entrarALaMesa,
-  obtenerCarta,
-  traducirError,
-  type SesionMesa,
-} from '../../../compartido/api/cliente';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Carta } from '../../../compartido/tipos/menu';
+import { obtenerCarta, traducirError } from '../../../compartido/api/cliente';
 import iconoBolsa from '../../../compartido/ui/iconos/bag.svg';
+import iconoCheckBlanco from '../../../compartido/ui/iconos/check-blanco.svg';
 import iconoInfo from '../../../compartido/ui/iconos/info.svg';
 import BarraDeAbajo from '../componentes/BarraDeAbajo';
 import EncabezadoMesa from '../componentes/EncabezadoMesa';
 import FiltrosEtiquetas from '../componentes/FiltrosEtiquetas';
+import PantallaDeEntrada, { botonPrincipal, PROBA_DE_NUEVO } from '../componentes/PantallaDeEntrada';
 import PestanasCategorias, { ID_PANEL_CATEGORIA } from '../componentes/PestanasCategorias';
 import { FilaPlato, PlatoDestacado } from '../componentes/Platos';
 import SinPlatos from '../componentes/SinPlatos';
 import { cantidadDePlatos, precio } from '../formato';
-
-type Entrada =
-  | { estado: 'cargando' }
-  | { estado: 'mesa-inexistente' } // P-35b
-  | { estado: 'mesa-no-disponible'; numero: string } // P-35
-  | { estado: 'error' }
-  | { estado: 'lista'; numero: string; sesion: SesionMesa };
-
-const PROBA_DE_NUEVO = 'Revisá la conexión y probá de nuevo.';
-
-const botonPrincipal = 'h-12 w-full rounded-[14px] bg-primario text-[15px] font-semibold text-texto-boton';
+import { useCarrito } from '../useCarrito';
+import { useEntradaMesa } from '../useEntradaMesa';
+import type { EstadoVuelta } from './PaginaPedidoCliente';
 
 // La carta no trae la lista de etiquetas: los chips salen de las que tienen los platos de la carta sin filtrar.
 function etiquetasDe(carta: Carta): string[] {
@@ -39,8 +26,7 @@ function etiquetasDe(carta: Carta): string[] {
 // P-01 (iniciador), P-01b (modo lectura), P-01c (sin platos con esas etiquetas) y P-01e (mozo avisado).
 export const PaginaMenuCliente: React.FC = () => {
   const { token = '' } = useParams<{ token: string }>();
-  const [entrada, setEntrada] = useState<Entrada>({ estado: 'cargando' });
-  const [intentoEntrada, setIntentoEntrada] = useState(0);
+  const { entrada, reintentar, mesaInexistente } = useEntradaMesa(token);
   const [carta, setCarta] = useState<Carta | null>(null);
   const [errorCarta, setErrorCarta] = useState(false);
   const [intentoCarta, setIntentoCarta] = useState(0);
@@ -48,37 +34,18 @@ export const PaginaMenuCliente: React.FC = () => {
   const [elegidas, setElegidas] = useState<string[]>([]);
   const [categoriaElegida, setCategoriaElegida] = useState<number | null>(null);
 
-  // Hasta la tarea 2 de la ST-07 el carrito vive en memoria: se pierde al ir a "Ver mi pedido" y volver.
-  const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
+  // El carrito vive en el celular (localStorage) y lo comparte con P-02: aguanta ir y venir y recargar.
+  const carrito = useCarrito(token, entrada.estado === 'lista' ? entrada.sesion.tokenSesion : null);
 
-  // Primero se mira la mesa, así una inhabilitada (P-35) o un QR que no existe (P-35b) no abren nada.
-  // Después va la sesión: si el celular ya tenía una en esa cuenta, el back le devuelve la misma.
+  // Al volver de P-02 con el pedido enviado. Se borra del historial, así al recargar no vuelve a aparecer.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [pedidoEnviado] = useState(() => (location.state as EstadoVuelta | null)?.pedidoEnviado === true);
   useEffect(() => {
-    let activo = true;
-    setEntrada({ estado: 'cargando' });
-    (async () => {
-      let numero: string | null = null;
-      try {
-        const mesa = await consultarMesa(token);
-        numero = mesa.numero;
-        if (!mesa.disponible) {
-          if (activo) setEntrada({ estado: 'mesa-no-disponible', numero });
-          return;
-        }
-        const sesion = await entrarALaMesa(token);
-        if (activo) setEntrada({ estado: 'lista', numero, sesion });
-      } catch (err) {
-        if (!activo) return;
-        const { motivo } = traducirError(err);
-        if (motivo === 'mesa-inexistente') setEntrada({ estado: 'mesa-inexistente' });
-        else if (motivo === 'mesa-no-disponible' && numero !== null) setEntrada({ estado: 'mesa-no-disponible', numero });
-        else setEntrada({ estado: 'error' });
-      }
-    })();
-    return () => {
-      activo = false;
-    };
-  }, [token, intentoEntrada]);
+    if (!pedidoEnviado) return;
+    navigate(location.pathname, { replace: true, state: null });
+    window.scrollTo({ top: 0 });
+  }, [pedidoEnviado, navigate, location.pathname]);
 
   const mesaLista = entrada.estado === 'lista';
 
@@ -96,7 +63,7 @@ export const PaginaMenuCliente: React.FC = () => {
       })
       .catch((err) => {
         if (!activo) return;
-        if (traducirError(err).motivo === 'mesa-inexistente') setEntrada({ estado: 'mesa-inexistente' });
+        if (traducirError(err).motivo === 'mesa-inexistente') mesaInexistente();
         else setErrorCarta(true);
       });
     return () => {
@@ -104,27 +71,13 @@ export const PaginaMenuCliente: React.FC = () => {
     };
   }, [token, mesaLista, elegidas, intentoCarta]);
 
-  const handleAgregarAlCarrito = (producto: Plato) => {
-    setCarrito((prev) => {
-      const existe = prev.find((item) => item.producto.id === producto.id);
-      if (existe) {
-        return prev.map((item) =>
-          item.producto.id === producto.id ? { ...item, cantidad: item.cantidad + 1 } : item
-        );
-      }
-      return [...prev, { producto, cantidad: 1 }];
-    });
-  };
-
   if (entrada.estado !== 'lista') {
-    return <PantallaDeEntrada entrada={entrada} onReintentar={() => setIntentoEntrada((n) => n + 1)} />;
+    return <PantallaDeEntrada entrada={entrada} onReintentar={reintentar} />;
   }
 
   const { numero, sesion } = entrada;
-  const onAgregar = sesion.esIniciador ? handleAgregarAlCarrito : undefined;
-
-  const platosEnCarrito = carrito.reduce((acc, item) => acc + item.cantidad, 0);
-  const total = carrito.reduce((acc, item) => acc + item.producto.precio * item.cantidad, 0);
+  const onAgregar = sesion.esIniciador ? carrito.agregar : undefined;
+  const { platos: platosEnCarrito, total } = carrito;
 
   // Si el filtro deja sin platos a la categoría elegida, el back no la manda: se pasa a la primera.
   const categorias = carta?.categorias ?? [];
@@ -180,6 +133,15 @@ export const PaginaMenuCliente: React.FC = () => {
       <div className="mx-auto max-w-lg pb-36">
         <EncabezadoMesa numero={numero} esIniciador={sesion.esIniciador} />
         <main className="flex flex-col gap-5 px-6 pt-2">
+          {pedidoEnviado && (
+            <p
+              role="status"
+              className="flex items-start gap-2.5 rounded-[14px] bg-primario p-3.5 text-sm font-medium text-texto-boton"
+            >
+              <img src={iconoCheckBlanco} alt="" width={20} height={20} className="shrink-0" />
+              Mandamos tu pedido. Antes de pasar a cocina, Caja le da una mirada.
+            </p>
+          )}
           {!sesion.esIniciador && (
             <p className="flex items-start gap-3 rounded-[14px] bg-linea p-3.5 text-[13px] text-texto">
               <img src={iconoInfo} alt="" width={20} height={20} className="shrink-0" />
@@ -209,44 +171,3 @@ export const PaginaMenuCliente: React.FC = () => {
     </div>
   );
 };
-
-// Lo que se ve antes de la carta. Va con los tokens de la paleta, como el login; P-35 y P-35b no tienen botones.
-function PantallaDeEntrada({
-  entrada,
-  onReintentar,
-}: {
-  entrada: Exclude<Entrada, { estado: 'lista' }>;
-  onReintentar: () => void;
-}) {
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-fondo p-6 font-inter text-texto">
-      <div className="w-full max-w-sm text-center">
-        <h1 className="titulo text-3xl text-primario">Chit&Go</h1>
-        <div className="mt-6 rounded-2xl border border-linea bg-tarjeta p-6">
-          {entrada.estado === 'cargando' && <p className="text-sm text-secundario">Cargando la mesa…</p>}
-
-          {entrada.estado === 'mesa-inexistente' && (
-            <h2 className="text-lg font-semibold">No encontramos esta mesa. Pedile ayuda al mozo.</h2>
-          )}
-
-          {entrada.estado === 'mesa-no-disponible' && (
-            <>
-              <h2 className="text-lg font-semibold">Esta mesa no está disponible.</h2>
-              <p className="mt-1 text-secundario">Mesa {entrada.numero}</p>
-              <p className="mt-4">Pedile ayuda al personal.</p>
-            </>
-          )}
-
-          {entrada.estado === 'error' && (
-            <div role="alert">
-              <p className="font-semibold">No pudimos abrir la mesa. {PROBA_DE_NUEVO}</p>
-              <button type="button" onClick={onReintentar} className={`mt-4 ${botonPrincipal}`}>
-                Reintentar
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </main>
-  );
-}
