@@ -1,16 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { Carta, Plato } from '../../../compartido/tipos/menu';
 import { ItemCarrito } from '../../../compartido/tipos/carrito';
 import {
   consultarMesa,
   entrarALaMesa,
-  llamarAlMozo,
   obtenerCarta,
   traducirError,
   type SesionMesa,
 } from '../../../compartido/api/cliente';
-import { CarritoCliente } from '../componentes/CarritoCliente';
+import iconoBolsa from '../../../compartido/ui/iconos/bag.svg';
+import iconoInfo from '../../../compartido/ui/iconos/info.svg';
+import BarraDeAbajo from '../componentes/BarraDeAbajo';
+import EncabezadoMesa from '../componentes/EncabezadoMesa';
+import FiltrosEtiquetas from '../componentes/FiltrosEtiquetas';
+import PestanasCategorias, { ID_PANEL_CATEGORIA } from '../componentes/PestanasCategorias';
+import { FilaPlato, PlatoDestacado } from '../componentes/Platos';
+import SinPlatos from '../componentes/SinPlatos';
+import { cantidadDePlatos, precio } from '../formato';
 
 type Entrada =
   | { estado: 'cargando' }
@@ -21,12 +28,15 @@ type Entrada =
 
 const PROBA_DE_NUEVO = 'Revisá la conexión y probá de nuevo.';
 
+const botonPrincipal = 'h-12 w-full rounded-[14px] bg-primario text-[15px] font-semibold text-texto-boton';
+
 // La carta no trae la lista de etiquetas: los chips salen de las que tienen los platos de la carta sin filtrar.
 function etiquetasDe(carta: Carta): string[] {
   const todas = new Set(carta.categorias.flatMap((c) => c.platos.flatMap((p) => p.etiquetas)));
   return [...todas].sort((a, b) => a.localeCompare(b, 'es'));
 }
 
+// P-01 (iniciador), P-01b (modo lectura), P-01c (sin platos con esas etiquetas) y P-01e (mozo avisado).
 export const PaginaMenuCliente: React.FC = () => {
   const { token = '' } = useParams<{ token: string }>();
   const [entrada, setEntrada] = useState<Entrada>({ estado: 'cargando' });
@@ -35,11 +45,10 @@ export const PaginaMenuCliente: React.FC = () => {
   const [errorCarta, setErrorCarta] = useState(false);
   const [intentoCarta, setIntentoCarta] = useState(0);
   const [etiquetas, setEtiquetas] = useState<string[]>([]);
-  const [etiquetaSeleccionada, setEtiquetaSeleccionada] = useState<string | null>(null);
-  const [cargandoLlamado, setCargandoLlamado] = useState(false);
-  const [avisoMozo, setAvisoMozo] = useState<'avisado' | 'no-se-pudo' | null>(null);
+  const [elegidas, setElegidas] = useState<string[]>([]);
+  const [categoriaElegida, setCategoriaElegida] = useState<number | null>(null);
 
-  // Estados agregados para HU-02 (Carrito)
+  // Hasta la tarea 2 de la ST-07 el carrito vive en memoria: se pierde al ir a "Ver mi pedido" y volver.
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
 
   // Primero se mira la mesa, así una inhabilitada (P-35) o un QR que no existe (P-35b) no abren nada.
@@ -74,16 +83,16 @@ export const PaginaMenuCliente: React.FC = () => {
   const mesaLista = entrada.estado === 'lista';
 
   // La carta va aparte de la entrada: si falla, "Reintentar" la vuelve a pedir sin abrir otra sesión.
+  // Mientras llega la carta filtrada se sigue viendo la anterior, así la pantalla no salta.
   useEffect(() => {
     if (!mesaLista) return;
     let activo = true;
-    setCarta(null);
     setErrorCarta(false);
-    obtenerCarta(token, etiquetaSeleccionada ?? undefined)
+    obtenerCarta(token, elegidas)
       .then((nueva) => {
         if (!activo) return;
         setCarta(nueva);
-        if (etiquetaSeleccionada === null) setEtiquetas(etiquetasDe(nueva));
+        if (elegidas.length === 0) setEtiquetas(etiquetasDe(nueva));
       })
       .catch((err) => {
         if (!activo) return;
@@ -93,54 +102,18 @@ export const PaginaMenuCliente: React.FC = () => {
     return () => {
       activo = false;
     };
-  }, [token, mesaLista, etiquetaSeleccionada, intentoCarta]);
+  }, [token, mesaLista, elegidas, intentoCarta]);
 
-  // 3. Funciones de manipulación del carrito (HU-02)
   const handleAgregarAlCarrito = (producto: Plato) => {
     setCarrito((prev) => {
       const existe = prev.find((item) => item.producto.id === producto.id);
       if (existe) {
         return prev.map((item) =>
-          item.producto.id === producto.id
-            ? { ...item, cantidad: item.cantidad + 1 }
-            : item
+          item.producto.id === producto.id ? { ...item, cantidad: item.cantidad + 1 } : item
         );
       }
       return [...prev, { producto, cantidad: 1 }];
     });
-  };
-
-  const handleActualizarCantidad = (idProducto: number, cambio: number) => {
-    setCarrito((prev) =>
-      prev
-        .map((item) => {
-          if (item.producto.id === idProducto) {
-            const nuevaCantidad = item.cantidad + cambio;
-            return nuevaCantidad > 0 ? { ...item, cantidad: nuevaCantidad } : null;
-          }
-          return item;
-        })
-        .filter((item): item is ItemCarrito => item !== null)
-    );
-  };
-
-  const handleLimpiarCarrito = () => {
-    setCarrito([]);
-  };
-
-  // Lo puede usar también el modo lectura (13/10). Un 409 es un llamado que el mozo todavía no atendió.
-  const handleLlamarAlMozo = async () => {
-    if (entrada.estado !== 'lista' || cargandoLlamado) return;
-    setCargandoLlamado(true);
-    setAvisoMozo(null);
-    try {
-      await llamarAlMozo(entrada.sesion.tokenSesion);
-      setAvisoMozo('avisado');
-    } catch (err) {
-      setAvisoMozo(traducirError(err).motivo === 'mozo-ya-avisado' ? 'avisado' : 'no-se-pudo');
-    } finally {
-      setCargandoLlamado(false);
-    }
   };
 
   if (entrada.estado !== 'lista') {
@@ -148,188 +121,91 @@ export const PaginaMenuCliente: React.FC = () => {
   }
 
   const { numero, sesion } = entrada;
+  const onAgregar = sesion.esIniciador ? handleAgregarAlCarrito : undefined;
+
+  const platosEnCarrito = carrito.reduce((acc, item) => acc + item.cantidad, 0);
+  const total = carrito.reduce((acc, item) => acc + item.producto.precio * item.cantidad, 0);
+
+  // Si el filtro deja sin platos a la categoría elegida, el back no la manda: se pasa a la primera.
+  const categorias = carta?.categorias ?? [];
+  const categoria = categorias.find((c) => c.id === categoriaElegida) ?? categorias[0];
+
+  let contenido: React.ReactNode;
+  if (errorCarta) {
+    contenido = (
+      <div role="alert" className="rounded-[14px] border-[1.5px] border-primario bg-tarjeta p-3 text-texto">
+        <p className="text-[15px] font-semibold">No pudimos cargar la carta. {PROBA_DE_NUEVO}</p>
+        <button type="button" onClick={() => setIntentoCarta((n) => n + 1)} className={`mt-3 ${botonPrincipal}`}>
+          Reintentar
+        </button>
+      </div>
+    );
+  } else if (carta === null) {
+    contenido = <p className="text-[13px] text-secundario">Cargando la carta…</p>;
+  } else if (categoria === undefined) {
+    contenido =
+      elegidas.length > 0 ? (
+        <SinPlatos onQuitarFiltro={() => setElegidas([])} />
+      ) : (
+        <p className="text-[15px] text-secundario">Todavía no hay platos en la carta. Pedile ayuda al mozo.</p>
+      );
+  } else {
+    contenido = (
+      <>
+        <PestanasCategorias categorias={categorias} elegida={categoria.id} onElegir={setCategoriaElegida} />
+        {carta.destacados.length > 0 && (
+          <section aria-label="Menú del día" className="flex flex-col gap-5">
+            {carta.destacados.map((plato) => (
+              <PlatoDestacado key={plato.id} plato={plato} onAgregar={onAgregar} />
+            ))}
+          </section>
+        )}
+        <section id={ID_PANEL_CATEGORIA} role="tabpanel" aria-labelledby={`pestana-${categoria.id}`}>
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <h2 className="titulo text-xl text-texto">{categoria.nombre}</h2>
+            <p className="text-[13px] text-secundario">{cantidadDePlatos(categoria.platos.length)}</p>
+          </div>
+          <ul className="divide-y divide-linea">
+            {categoria.platos.map((plato) => (
+              <FilaPlato key={plato.id} plato={plato} onAgregar={onAgregar} />
+            ))}
+          </ul>
+        </section>
+      </>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#FAF6F0] text-[#2A1A17] pb-24 font-sans">
-      <header className="sticky top-0 bg-[#FAF6F0]/90 backdrop-blur-md border-b border-[#E8D8C8] px-4 py-3 z-10">
-        <div className="flex justify-between items-center max-w-4xl mx-auto">
-          <div>
-            <h1 className="text-xl font-bold font-serif text-[#C93B1D]">Chit&Go</h1>
-            <p className="text-xs text-stone-600">Mesa #{numero}</p>
-          </div>
+    <div className="min-h-screen bg-fondo font-inter leading-[normal] text-texto">
+      <div className="mx-auto max-w-lg pb-36">
+        <EncabezadoMesa numero={numero} esIniciador={sesion.esIniciador} />
+        <main className="flex flex-col gap-5 px-6 pt-2">
           {!sesion.esIniciador && (
-            <span className="bg-amber-100 text-amber-800 text-xs px-2.5 py-1 rounded-full font-medium border border-amber-300">
-              Modo lectura
+            <p className="flex items-start gap-3 rounded-[14px] bg-linea p-3.5 text-[13px] text-texto">
+              <img src={iconoInfo} alt="" width={20} height={20} className="shrink-0" />
+              Esta mesa ya tiene una cuenta abierta: el pedido lo hace quien escaneó primero. Podés mirar el menú y
+              llamar al mozo cuando quieras.
+            </p>
+          )}
+          {etiquetas.length > 0 && <FiltrosEtiquetas etiquetas={etiquetas} elegidas={elegidas} onCambiar={setElegidas} />}
+          {contenido}
+        </main>
+      </div>
+
+      <BarraDeAbajo tokenSesion={sesion.tokenSesion}>
+        {sesion.esIniciador && platosEnCarrito > 0 && (
+          <Link
+            to={`/mesa/${encodeURIComponent(token)}/pedido`}
+            className="flex h-[60px] min-w-0 flex-1 items-center justify-center gap-2 rounded-[14px] bg-primario px-[18px]"
+          >
+            <img src={iconoBolsa} alt="" width={20} height={20} />
+            <span className="flex flex-col whitespace-nowrap">
+              <span className="text-[15px] font-semibold text-texto-boton">Ver mi pedido ({platosEnCarrito})</span>
+              <span className="text-[13px] text-linea">{precio(total)}</span>
             </span>
-          )}
-        </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto px-4 pt-4 space-y-6">
-        {!sesion.esIniciador && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900">
-            <strong>Atención:</strong> La cuenta de esta mesa fue abierta por otro comensal. Puedes consultar la carta, pero los pedidos se envían desde el dispositivo principal.
-          </div>
+          </Link>
         )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Columna Izquierda: Menú / Carta */}
-          <div className="lg:col-span-2 space-y-6">
-            {etiquetas.length > 0 && (
-              <section>
-                <p className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2">
-                  Filtrar por dieta / alérgenos
-                </p>
-                <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                  <button
-                    onClick={() => setEtiquetaSeleccionada(null)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-                      etiquetaSeleccionada === null
-                        ? 'bg-[#C93B1D] text-white'
-                        : 'bg-[#E8D8C8] text-[#2A1A17] hover:bg-[#d8c4b0]'
-                    }`}
-                  >
-                    Todos
-                  </button>
-                  {etiquetas.map((etiqueta) => (
-                    <button
-                      key={etiqueta}
-                      onClick={() =>
-                        setEtiquetaSeleccionada(
-                          etiquetaSeleccionada === etiqueta ? null : etiqueta
-                        )
-                      }
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-                        etiquetaSeleccionada === etiqueta
-                          ? 'bg-[#C93B1D] text-white'
-                          : 'bg-[#E8D8C8] text-[#2A1A17] hover:bg-[#d8c4b0]'
-                      }`}
-                    >
-                      {etiqueta}
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {errorCarta ? (
-              <div role="alert" className="rounded-[14px] border-[1.5px] border-primario bg-tarjeta p-4 text-texto">
-                <p className="font-semibold">No pudimos cargar la carta. {PROBA_DE_NUEVO}</p>
-                <button
-                  type="button"
-                  onClick={() => setIntentoCarta((n) => n + 1)}
-                  className="mt-4 w-full rounded-xl bg-primario py-3 font-medium text-white"
-                >
-                  Reintentar
-                </button>
-              </div>
-            ) : carta === null ? (
-              <p className="text-sm text-secundario">Cargando la carta…</p>
-            ) : (
-              carta.categorias.map((cat) => {
-                if (cat.platos.length === 0) return null;
-
-                return (
-                  <section key={cat.id} className="space-y-3">
-                    <h2 className="text-lg font-bold font-serif border-b border-[#E8D8C8] pb-1 text-[#2A1A17]">
-                      {cat.nombre}
-                    </h2>
-                    <div className="space-y-3">
-                      {cat.platos.map((plato) => (
-                        <article
-                          key={plato.id}
-                          className="bg-white rounded-xl p-4 shadow-sm border border-[#E8D8C8]/60 flex justify-between gap-3"
-                        >
-                          <div className="flex-1 space-y-1">
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-semibold text-sm text-[#2A1A17]">{plato.nombre}</h3>
-                              {plato.destacado && (
-                                <span className="bg-orange-100 text-[#C93B1D] text-[10px] px-1.5 py-0.5 rounded font-bold">
-                                  Menú del día
-                                </span>
-                              )}
-                            </div>
-                            {plato.descripcion && (
-                              <p className="text-xs text-stone-600 line-clamp-2">{plato.descripcion}</p>
-                            )}
-
-                            {plato.etiquetas.length > 0 && (
-                              <div className="flex gap-1 pt-1">
-                                {plato.etiquetas.map((e) => (
-                                  <span
-                                    key={e}
-                                    className="bg-emerald-50 text-emerald-700 text-[10px] px-1.5 py-0.5 rounded font-medium border border-emerald-200"
-                                  >
-                                    {e}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-
-                            <p className="text-sm font-bold text-[#C93B1D] pt-1">
-                              ${plato.precio.toLocaleString('es-AR')}
-                            </p>
-                          </div>
-
-                          {sesion.esIniciador && (
-                            <button
-                              type="button"
-                              onClick={() => handleAgregarAlCarrito(plato)}
-                              className="self-end bg-[#C93B1D] hover:bg-[#A82F16] text-white text-xs px-3 py-2 rounded-lg font-medium transition-colors"
-                            >
-                              + Agregar
-                            </button>
-                          )}
-                        </article>
-                      ))}
-                    </div>
-                  </section>
-                );
-              })
-            )}
-          </div>
-
-          {/* Columna Derecha: Componente CarritoCliente (HU-02) */}
-          {sesion.esIniciador && (
-            <div className="lg:col-span-1">
-              <div className="sticky top-20">
-                <CarritoCliente
-                  items={carrito}
-                  tokenSesion={sesion.tokenSesion}
-                  onActualizarCantidad={handleActualizarCantidad}
-                  onLimpiarCarrito={handleLimpiarCarrito}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      </main>
-
-      <footer className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-[#E8D8C8] p-3 z-20">
-        <div className="max-w-4xl mx-auto">
-          <div aria-live="polite">
-            {avisoMozo === 'avisado' && (
-              <p className="mb-2 rounded-[14px] bg-primario px-3 py-2 text-sm font-semibold text-white">
-                Ya avisamos al mozo.
-              </p>
-            )}
-            {avisoMozo === 'no-se-pudo' && (
-              <p className="mb-2 rounded-[14px] border-[1.5px] border-primario bg-tarjeta px-3 py-2 text-sm font-semibold text-texto">
-                No pudimos avisar al mozo. Probá de nuevo.
-              </p>
-            )}
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={handleLlamarAlMozo}
-              disabled={cargandoLlamado}
-              className="flex-1 bg-[#2A1A17] hover:bg-stone-800 disabled:bg-stone-400 text-white text-xs py-3 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 shadow-md"
-            >
-              🔔 {cargandoLlamado ? 'Enviando...' : 'Llamar al mozo'}
-            </button>
-          </div>
-        </div>
-      </footer>
+      </BarraDeAbajo>
     </div>
   );
 };
@@ -343,9 +219,9 @@ function PantallaDeEntrada({
   onReintentar: () => void;
 }) {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-fondo p-6 text-texto">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-fondo p-6 font-inter text-texto">
       <div className="w-full max-w-sm text-center">
-        <h1 className="text-3xl font-bold text-primario">Chit&Go</h1>
+        <h1 className="titulo text-3xl text-primario">Chit&Go</h1>
         <div className="mt-6 rounded-2xl border border-linea bg-tarjeta p-6">
           {entrada.estado === 'cargando' && <p className="text-sm text-secundario">Cargando la mesa…</p>}
 
@@ -364,11 +240,7 @@ function PantallaDeEntrada({
           {entrada.estado === 'error' && (
             <div role="alert">
               <p className="font-semibold">No pudimos abrir la mesa. {PROBA_DE_NUEVO}</p>
-              <button
-                type="button"
-                onClick={onReintentar}
-                className="mt-4 w-full rounded-xl bg-primario py-3 font-medium text-white"
-              >
+              <button type="button" onClick={onReintentar} className={`mt-4 ${botonPrincipal}`}>
                 Reintentar
               </button>
             </div>

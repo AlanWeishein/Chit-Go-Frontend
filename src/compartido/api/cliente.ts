@@ -104,8 +104,11 @@ export function entrarALaMesa(tokenQR: string): Promise<SesionMesa> {
   return entrada
 }
 
-export function obtenerCarta(tokenQR: string, etiqueta?: string): Promise<Carta> {
-  const filtro = etiqueta ? `?etiqueta=${encodeURIComponent(etiqueta)}` : ''
+// Con varias etiquetas va un ?etiqueta= por cada una, y el back devuelve los platos que tienen todas (HU-01).
+export function obtenerCarta(tokenQR: string, etiquetas: string[] = []): Promise<Carta> {
+  const params = new URLSearchParams()
+  etiquetas.forEach((e) => params.append('etiqueta', e))
+  const filtro = etiquetas.length > 0 ? `?${params}` : ''
   return conTraduccion('carta', () => api<Carta>(`${rutaMesa(tokenQR)}/menu${filtro}`))
 }
 
