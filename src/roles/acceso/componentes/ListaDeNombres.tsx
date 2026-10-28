@@ -1,5 +1,6 @@
 import type { Usuario } from '../../../compartido/api/auth'
 import iconoChevron from '../../../compartido/ui/iconos/chevron-r.svg'
+import { foco } from './MarcoAcceso'
 
 // Las iniciales del círculo de la lista: la primera letra de las dos primeras palabras ("Juan Pérez" da "JP"),
 // o las dos primeras letras si el nombre es una sola palabra ("Juan" da "JU").
@@ -25,7 +26,7 @@ export default function ListaDeNombres({
           <button
             type="button"
             onClick={() => onElegir(u)}
-            className={`flex w-full items-center rounded-[14px] border border-secundario bg-fondo py-[11px] text-left hover:bg-tarjeta ${
+            className={`flex w-full items-center rounded-[14px] border border-secundario bg-fondo py-[11px] text-left hover:bg-tarjeta ${foco} ${
               grande ? 'min-h-16 gap-3.5 pl-3.5 pr-4' : 'min-h-[60px] gap-3 pl-[13px] pr-[15px]'
             }`}
           >

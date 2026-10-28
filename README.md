@@ -36,7 +36,7 @@ sea `false`. En el build de producción los mocks nunca se usan.
 - `npm run typecheck`: solo revisa los tipos.
 
 No hay tests automáticos. Cada cambio se prueba con `npm run build` y un recorrido en el navegador, a
-375 px de ancho, contra el back real.
+375 px de ancho (el acceso, también a 768, 1024 y 1280), contra el back real.
 
 ## Carpetas
 
@@ -66,6 +66,7 @@ Rutas (`src/App.tsx`):
 
   En modo lectura (un celular que no abrió la cuenta), `/pedido` y `/cuenta` vuelven a la carta.
 - `/staff/{tokenStaff}`: el login con PIN de Mozo, Caja y Cocina. `/staff/{tokenStaff}/elegir-pin` es el primer ingreso.
+- `/staff/{tokenStaff}/caja`: la entrada de la tablet de Caja (dos paneles). Siempre muestra la lista de nombres, sin mirar la cookie de dispositivo. `?cerrada=inactividad` muestra el aviso de sesión cortada, que hoy nada dispara.
 - `/admin/login`: el login con email del Admin y del Gerente/Dueño. `/admin/cambiar-contrasena` es su primer ingreso.
 - `/mozo`, `/caja`, `/cocina` y `/admin`: una pantalla provisoria que muestra quién entró y tiene "Cerrar sesión".
 - `/plataforma`: "En construcción".
@@ -121,7 +122,7 @@ del README del back.
 
 Si el navegador ya tiene la cookie de dispositivo de un mozo (la deja el login con usuario y contraseña y
 dura 7 días), `/staff/{tokenStaff}` abre directo el PIN de ese mozo. Para entrar como Caja o Cocina, tocá
-"Cambiar" y elegí el nombre de la lista.
+"Cambiar" y elegí el nombre de la lista. Caja también tiene su entrada, `/staff/{tokenStaff}/caja`, que va siempre a la lista.
 
 Dos cosas de la seed para tener en cuenta:
 
@@ -154,13 +155,16 @@ están como tokens de Tailwind en `src/compartido/estilos/index.css`. Los colore
 | `linea` | `#E4E0DA` | Separadores |
 | `texto` | `#2A211D` | Texto principal |
 | `secundario` | `#6E635C` | Texto de apoyo y bordes de los campos |
-| `primario` | `#4B3027` | Botón principal, marca y enlaces |
+| `primario` | `#4B3027` | Botón principal, puntos del PIN llenos y anillo de foco |
 | `texto-boton` | `#FFFFFF` | Texto sobre `primario` |
 | `suave` | `#DCEDE4` | Resalte suave, como el hover |
 
-Los títulos van en Fraunces SemiBold y el cliente usa Inter para todo lo demás (el login sigue con la fuente
-del sistema). Las dos se cargan desde Google Fonts en `index.html`: sin conexión caen en Georgia y en la fuente
-del sistema.
+Los títulos van en Fraunces SemiBold y el cliente y el acceso usan Inter para todo lo demás. Las dos se cargan
+desde Google Fonts en `index.html`: sin conexión caen en Georgia y en la fuente del sistema.
+
+En el acceso, el PIN también se escribe con el teclado físico (dígitos, Retroceso y Enter), y el foco con Tab
+se ve con un anillo `primario` de 2 px (`foco`, en `MarcoAcceso.tsx`), porque el anillo del navegador depende del
+sistema y puede quedar por debajo de 3:1.
 
 ## Ramas
 

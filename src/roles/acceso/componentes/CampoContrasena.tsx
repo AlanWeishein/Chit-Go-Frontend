@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import iconoCandado from '../../../compartido/ui/iconos/lock.svg'
 import iconoOjo from '../../../compartido/ui/iconos/eye.svg'
+import { foco } from './MarcoAcceso'
 
 export const PASSWORD_MIN = 8
 export const PASSWORD_MAX = 64
@@ -66,7 +67,7 @@ export default function CampoContrasena({ id, rotulo: etiqueta, valor, onCambio,
         onClick={() => setVisible((v) => !v)}
         aria-pressed={visible}
         aria-controls={id}
-        className="absolute right-[15px] top-0.5 flex h-11 items-center gap-1.5 px-2 text-[13px] font-medium text-texto underline"
+        className={`absolute right-[15px] top-0.5 flex h-11 items-center gap-1.5 px-2 text-[13px] font-medium text-texto underline ${foco}`}
       >
         <img src={iconoOjo} alt="" width={18} height={18} />
         {visible ? 'Ocultar' : 'Mostrar'}
