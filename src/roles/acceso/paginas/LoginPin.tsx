@@ -16,7 +16,10 @@ import { rutaDeEntrada } from '../../../compartido/sesion/rutas'
 import { recordarTokenStaff } from '../../../compartido/sesion/tokenStaff'
 import AvisoDeFallo from '../componentes/AvisoDeFallo'
 import FormularioMozo from '../componentes/FormularioMozo'
-import { enlace } from '../componentes/MarcoAcceso'
+import iconoFlechaDer from '../../../compartido/ui/iconos/arrow-r.svg'
+import iconoFlechaIzq from '../../../compartido/ui/iconos/arrow-l.svg'
+import iconoFlechaIzqPrimario from '../../../compartido/ui/iconos/arrow-l-primario.svg'
+import MarcoAcceso, { botonPrincipal, botonSecundario, columna, enlace } from '../componentes/MarcoAcceso'
 import SesionAbierta from '../componentes/SesionAbierta'
 import TecladoPin from '../componentes/TecladoPin'
 import { textoDeFallo } from '../componentes/textoDeFallo'
@@ -81,70 +84,86 @@ export default function LoginPin() {
     }
   }
 
+  const enPin = elegido !== null && !pidiendoContrasena
+  const bloqueado = enPin && fallo?.motivo === 'bloqueado'
+  const bajada = !enPin
+    ? (staff?.nombreLocal ?? 'Ingreso para el personal')
+    : bloqueado
+      ? `Hola, ${elegido.nombre}.`
+      : `Hola, ${elegido.nombre}. Ingresá tu PIN para empezar el turno.`
+  // P-04d: el título del aviso es la primera oración del texto del back, y debajo va el resto.
+  const [tituloBloqueo, ...restoBloqueo] = fallo ? textoDeFallo(fallo).split(/(?<=\.)\s/) : []
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-fondo p-6 text-texto">
-      <div className="w-full max-w-sm">
-        <h1 className="text-center text-3xl font-bold text-primario">Chit&Go</h1>
-        <p className="mt-1 text-center text-sm text-secundario">{staff?.nombreLocal ?? 'Ingreso para el personal'}</p>
+    // Con el aviso de PIN incorrecto se saca la taza, como P-04c, para que entre el teclado.
+    <MarcoAcceso bajada={bajada} ilustracion={!(enPin && fallo && !bloqueado)}>
+      {fallo && !enPin && <AvisoDeFallo className="mb-4">{textoDeFallo(fallo)}</AvisoDeFallo>}
 
-        <div className="mt-6 rounded-2xl border border-linea bg-tarjeta p-6">
-          {fallo && <AvisoDeFallo className="mb-4">{textoDeFallo(fallo)}</AvisoDeFallo>}
-
-          {pidiendoContrasena ? (
-            <FormularioMozo
-              tokenStaff={token}
-              onHabilitado={(mozo) => {
-                setElegido({ id: mozo.id, nombre: mozo.nombre })
-                setPidiendoContrasena(false)
-                setFallo(null)
-              }}
-              onVolver={volverALaLista}
-            />
-          ) : !elegido ? (
-            <section>
-              <h2 className="mb-3 text-sm font-medium">¿Quién sos?</h2>
-              {staff === null && !fallo && <p className="text-sm text-secundario">Cargando…</p>}
-              <ul className="grid grid-cols-2 gap-3">
-                {staff?.usuarios.map((u) => (
-                  <li key={u.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setElegido(u)
-                        setFallo(null)
-                      }}
-                      className="w-full rounded-xl border border-secundario bg-fondo py-4 font-semibold hover:bg-suave"
-                    >
-                      {u.nombre}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : (
-            <form onSubmit={enviar}>
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-medium">Hola, {elegido.nombre}. Ingresá tu PIN.</h2>
-                <button type="button" onClick={volverALaLista} className={enlace}>
-                  Cambiar
+      {pidiendoContrasena ? (
+        <FormularioMozo
+          tokenStaff={token}
+          onHabilitado={(mozo) => {
+            setElegido({ id: mozo.id, nombre: mozo.nombre })
+            setPidiendoContrasena(false)
+            setFallo(null)
+          }}
+          onVolver={volverALaLista}
+        />
+      ) : !elegido ? (
+        <section>
+          <h2 className="mb-3 text-sm font-medium">¿Quién sos?</h2>
+          {staff === null && !fallo && <p className="text-sm text-secundario">Cargando…</p>}
+          <ul className="grid grid-cols-2 gap-3">
+            {staff?.usuarios.map((u) => (
+              <li key={u.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setElegido(u)
+                    setFallo(null)
+                  }}
+                  className="w-full rounded-xl border border-secundario bg-fondo py-4 font-semibold hover:bg-suave"
+                >
+                  {u.nombre}
                 </button>
-              </div>
-
-              <VisorPin pin={pin} />
-
-              <TecladoPin valor={pin} onCambio={setPin} max={PIN_MAX} deshabilitado={enviando} />
-
-              <button
-                type="submit"
-                disabled={enviando || pin.length < PIN_MIN}
-                className="mt-5 w-full rounded-xl bg-primario py-3 text-lg font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {enviando ? 'Ingresando…' : 'Ingresar'}
-              </button>
-            </form>
-          )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : bloqueado ? (
+        <div className={columna}>
+          <AvisoDeFallo icono="candado" titulo={tituloBloqueo}>
+            {restoBloqueo.join(' ')}
+          </AvisoDeFallo>
+          <button type="button" onClick={volverALaLista} className={botonSecundario}>
+            <img src={iconoFlechaIzqPrimario} alt="" width={20} height={20} />
+            Elegir otro nombre
+          </button>
+          <p className="max-w-[300px] text-center text-[13px] text-secundario">
+            Se bloquea a los 5 intentos fallidos seguidos. El Admin lo destraba con un blanqueo de PIN.
+          </p>
         </div>
-      </div>
-    </main>
+      ) : (
+        <form onSubmit={enviar} className={columna}>
+          <VisorPin pin={pin} />
+
+          {fallo && <AvisoDeFallo>{textoDeFallo(fallo)}</AvisoDeFallo>}
+
+          <TecladoPin valor={pin} onCambio={setPin} max={PIN_MAX} deshabilitado={enviando} />
+
+          <button type="submit" disabled={enviando || pin.length < PIN_MIN} className={botonPrincipal}>
+            <img src={iconoFlechaDer} alt="" width={20} height={20} />
+            {enviando ? 'Ingresando…' : 'Ingresar'}
+          </button>
+
+          <button type="button" onClick={volverALaLista} className={enlace}>
+            <img src={iconoFlechaIzq} alt="" width={20} height={20} />
+            Cambiar
+          </button>
+
+          {!fallo && <p className="text-[13px] text-secundario">Mismo acceso para Mozo, Caja y Cocina.</p>}
+        </form>
+      )}
+    </MarcoAcceso>
   )
 }

@@ -11,7 +11,7 @@
   --color-texto-boton: #FFFFFF;
   --color-suave: #DCEDE4;
 
-  /* Se cargan en index.html. Por ahora Inter va solo en el cliente (font-inter): el login sigue con la del sistema. */
+  /* Se cargan en index.html. Inter va en el cliente y en el acceso (font-inter). */
   --font-fraunces: "Fraunces", Georgia, serif;
   --font-inter: "Inter", system-ui, sans-serif;
 }

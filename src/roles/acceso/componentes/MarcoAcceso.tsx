@@ -1,20 +1,34 @@
 import type { ReactNode } from 'react'
+import ilustracionHola from '../../../compartido/ui/iconos/ilustracion-hola.svg'
 
-// El marco de las pantallas de acceso: la marca, una bajada y la tarjeta, como LoginPin y LoginAdmin.
-export default function MarcoAcceso({ bajada, children }: { bajada: string; children: ReactNode }) {
+// El marco de las pantallas de acceso, sin tarjeta como el Mockup (P-04): la taza, la marca, la bajada y el
+// contenido sobre `fondo`. La taza se saca cuando hay un aviso arriba del teclado (P-04c, P-30b), para que entre todo.
+export default function MarcoAcceso({
+  bajada,
+  ilustracion = true,
+  children,
+}: {
+  bajada: string
+  ilustracion?: boolean
+  children: ReactNode
+}) {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-fondo p-6 text-texto">
-      <div className="w-full max-w-sm">
-        <h1 className="text-center text-3xl font-bold text-primario">Chit&Go</h1>
-        <p className="mt-1 text-center text-sm text-secundario">{bajada}</p>
-        <div className="mt-6 rounded-2xl border border-linea bg-tarjeta p-6">{children}</div>
+    <main className="flex min-h-screen justify-center bg-fondo px-6 pb-8 pt-10 font-inter text-texto">
+      <div className="flex w-full max-w-sm flex-col items-center gap-[18px]">
+        {ilustracion && <img src={ilustracionHola} alt="" width={84} height={84} />}
+        <h1 className="titulo text-[30px] text-texto">Chit&Go</h1>
+        <p className="max-w-[280px] text-center text-[15px] text-secundario">{bajada}</p>
+        <div className="w-full">{children}</div>
       </div>
     </main>
   )
 }
 
-export const botonPrincipal =
-  'w-full rounded-xl bg-primario py-3 text-lg font-medium text-white disabled:cursor-not-allowed disabled:opacity-50'
-export const botonSecundario =
-  'w-full rounded-xl border-[1.5px] border-primario py-3 text-lg font-medium text-primario disabled:cursor-not-allowed disabled:opacity-50'
-export const enlace = 'min-h-11 text-sm font-semibold text-primario underline'
+// Los bloques de una pantalla de acceso van en columna, separados 18 px como en el Mockup.
+export const columna = 'flex w-full flex-col items-center gap-[18px]'
+
+const boton =
+  'flex h-14 w-full items-center justify-center gap-2 rounded-[14px] px-[18px] text-[15px] font-semibold disabled:cursor-not-allowed disabled:opacity-[.38]'
+export const botonPrincipal = `${boton} bg-primario text-texto-boton`
+export const botonSecundario = `${boton} border-[1.5px] border-primario text-primario`
+export const enlace = 'inline-flex min-h-11 items-center justify-center gap-2 px-1 text-sm font-semibold text-texto underline'

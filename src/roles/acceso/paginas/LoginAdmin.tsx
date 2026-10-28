@@ -45,7 +45,7 @@ export default function LoginAdmin() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-fondo p-6 text-texto">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-fondo p-6 font-inter text-texto">
       <div className="w-full max-w-sm">
         <h1 className="text-center text-3xl font-bold text-primario">Chit&Go</h1>
         <p className="mt-1 text-center text-sm text-secundario">Ingreso para Admin y Dueño</p>

@@ -9,7 +9,8 @@ import { useSesion } from '../../../compartido/sesion/SesionContext'
 import { entraConEmail, rutaInicial } from '../../../compartido/sesion/rutas'
 import AvisoDeFallo from '../componentes/AvisoDeFallo'
 import CampoContrasena, { PASSWORD_MAX, PASSWORD_MIN } from '../componentes/CampoContrasena'
-import MarcoAcceso, { botonPrincipal, enlace } from '../componentes/MarcoAcceso'
+import iconoFlechaDer from '../../../compartido/ui/iconos/arrow-r.svg'
+import MarcoAcceso, { botonPrincipal, columna, enlace } from '../componentes/MarcoAcceso'
 import TecladoPin from '../componentes/TecladoPin'
 import { textoDeFallo } from '../componentes/textoDeFallo'
 import VisorPin, { PIN_MAX, PIN_MIN } from '../componentes/VisorPin'
@@ -108,12 +109,23 @@ export default function ElegirPin() {
   }
 
   const textoDelAviso = aviso ?? (fallo ? textoDeFallo(fallo) : null)
+  const conBoton = fallo?.motivo === 'credencial-elegida' || fallo?.motivo === 'sesion-vencida'
+  const enPin = !conBoton && actual !== 'contrasena'
+  const avisoDelPin = enPin && textoDelAviso ? <AvisoDeFallo>{textoDelAviso}</AvisoDeFallo> : null
+  // P-30, P-30b y el paso de repetir llevan sus instrucciones en la bajada; el resto, el nombre del local.
+  const bajada = !enPin
+    ? (sesion.local?.nombre ?? 'Ingreso para el personal')
+    : actual === 'repetir'
+      ? 'Repetí el PIN. Para confirmarlo.'
+      : aviso === NO_COINCIDEN
+        ? 'Elegí tu PIN otra vez y repetilo para confirmarlo.'
+        : 'Elegí tu PIN. El que te dio el Admin era provisorio.'
 
   return (
-    <MarcoAcceso bajada={sesion.local?.nombre ?? 'Ingreso para el personal'}>
-      {textoDelAviso && <AvisoDeFallo className="mb-4">{textoDelAviso}</AvisoDeFallo>}
+    <MarcoAcceso bajada={bajada} ilustracion={!(enPin && textoDelAviso)}>
+      {textoDelAviso && !enPin && <AvisoDeFallo className="mb-4">{textoDelAviso}</AvisoDeFallo>}
 
-      {fallo?.motivo === 'credencial-elegida' || fallo?.motivo === 'sesion-vencida' ? (
+      {conBoton ? (
         <button type="button" onClick={actualizarSesion} className={botonPrincipal}>
           {fallo.motivo === 'credencial-elegida' ? 'Seguir' : 'Volver a entrar'}
         </button>
@@ -153,15 +165,11 @@ export default function ElegirPin() {
           </button>
         </form>
       ) : (
-        <form onSubmit={actual === 'pin' ? seguirARepetir : guardar}>
-          <h2 className="text-sm font-medium">
-            {actual === 'pin' ? `Hola, ${sesion.nombre}. Elegí tu PIN.` : 'Repetí el PIN.'}
-          </h2>
-          <p className="mb-3 mt-1 text-xs text-secundario">
-            {actual === 'pin' ? 'El que te dio el Admin era provisorio. El tuyo tiene que ser distinto.' : 'Para confirmarlo.'}
-          </p>
-
+        <form onSubmit={actual === 'pin' ? seguirARepetir : guardar} className={columna}>
           <VisorPin pin={actual === 'pin' ? pin : pinRepetido} />
+
+          {avisoDelPin}
+
           <TecladoPin
             valor={actual === 'pin' ? pin : pinRepetido}
             onCambio={actual === 'pin' ? setPin : setPinRepetido}
@@ -172,14 +180,19 @@ export default function ElegirPin() {
           <button
             type="submit"
             disabled={enviando || (actual === 'pin' ? pin : pinRepetido).length < PIN_MIN}
-            className={`mt-5 ${botonPrincipal}`}
+            className={botonPrincipal}
           >
+            <img src={iconoFlechaDer} alt="" width={20} height={20} />
             {actual === 'pin' ? 'Seguir' : enviando ? 'Guardando…' : 'Guardar y entrar'}
           </button>
+
+          {actual === 'pin' && (
+            <p className="text-[13px] text-secundario">Después te lo pedimos otra vez para confirmarlo.</p>
+          )}
         </form>
       )}
 
-      <div className="mt-4 text-center">
+      <div className="mt-2 flex justify-center">
         <button type="button" onClick={() => cerrar().catch(() => undefined)} className={enlace}>
           Cerrar sesión
         </button>
