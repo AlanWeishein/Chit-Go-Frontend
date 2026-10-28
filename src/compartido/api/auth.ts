@@ -33,6 +33,21 @@ export interface DatosStaff {
   usuarios: Usuario[]
 }
 
+// GET /auth/dispositivo y POST /auth/mozo/login: el mozo que validó su contraseña en este navegador
+export interface Dispositivo {
+  id: number
+  nombre: string
+  venceEn: string // ISO
+}
+
+// POST /auth/credencial. Cada rol manda solo lo suyo; lo que no va, sin mandar.
+export interface CredencialNueva {
+  pin?: string
+  pinRepetido?: string
+  password?: string
+  passwordRepetida?: string
+}
+
 /* ---------------- Errores ---------------- */
 
 export type FalloLogin =
@@ -42,7 +57,12 @@ export type FalloLogin =
   | { motivo: 'pin-incorrecto' } // 401 sin codigo, en /auth/pin
   | { motivo: 'pin-invalido' } // 400 en /auth/pin
   | { motivo: 'admin-incorrecto' } // 401 en /auth/admin/login
+  | { motivo: 'mozo-incorrecto' } // 401 en /auth/mozo/login
+  | { motivo: 'mozo-invalido' } // 400 en /auth/mozo/login
   | { motivo: 'credencial-provisoria' } // 403 + codigo CREDENCIAL_PROVISORIA
+  | { motivo: 'credencial-rechazada'; detalle?: string } // 400 en /auth/credencial: el detail del back
+  | { motivo: 'credencial-elegida' } // 409 en /auth/credencial
+  | { motivo: 'sesion-vencida' } // 401 en /auth/credencial
   | { motivo: 'red' } // sin conexión o error inesperado
 
 export class LoginFallido extends Error {
@@ -51,11 +71,16 @@ export class LoginFallido extends Error {
   }
 }
 
-export type Endpoint = 'staff' | 'pin' | 'admin'
+export type Endpoint = 'staff' | 'pin' | 'admin' | 'mozo' | 'credencial'
 
 function codigoDe(err: ApiError): string | undefined {
   const d = err.detalle as ProblemDetail | undefined
   return typeof d?.codigo === 'string' ? d.codigo : undefined
+}
+
+function detailDe(err: ApiError): string | undefined {
+  const d = err.detalle as ProblemDetail | undefined
+  return typeof d?.detail === 'string' && d.detail.trim() !== '' ? d.detail : undefined
 }
 
 // Se compara status y codigo del ProblemDetail, nunca el texto de detail.
@@ -77,6 +102,20 @@ export function traducirError(err: unknown, endpoint?: Endpoint): FalloLogin {
   }
 
   if (endpoint === 'admin' && err.status === 401) return { motivo: 'admin-incorrecto' }
+
+  if (endpoint === 'mozo') {
+    if (err.status === 404) return { motivo: 'qr-invalido' }
+    if (err.status === 423) return { motivo: 'bloqueado' }
+    if (err.status === 401) return { motivo: 'mozo-incorrecto' }
+    if (err.status === 400) return { motivo: 'mozo-invalido' }
+  }
+
+  // El 400 tiene varios sentidos sin codigo ("No coinciden", "distinto del anterior"…): se muestra el detail.
+  if (endpoint === 'credencial') {
+    if (err.status === 400) return { motivo: 'credencial-rechazada', detalle: detailDe(err) }
+    if (err.status === 409) return { motivo: 'credencial-elegida' }
+    if (err.status === 401) return { motivo: 'sesion-vencida' }
+  }
 
   return { motivo: 'red' }
 }
@@ -228,6 +267,33 @@ export function loginAdmin(email: string, password: string): Promise<Sesion> {
     USAR_MOCKS
       ? mockLoginAdmin(email, password)
       : api<Sesion>('/auth/admin/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  )
+}
+
+// GET /auth/dispositivo: el front no puede leer la cookie de dispositivo. 204 (o cualquier falla) = no hay,
+// y se muestra la lista de nombres. No tiene mock: con VITE_MOCKS=true también va al back.
+export async function obtenerDispositivo(): Promise<Dispositivo | null> {
+  try {
+    return (await api<Dispositivo | undefined>('/auth/dispositivo')) ?? null
+  } catch {
+    return null
+  }
+}
+
+// POST /auth/mozo/login (P-32). No abre la sesión: deja la cookie de dispositivo y después va el PIN.
+export function loginMozo(tokenStaff: string, nombreUsuario: string, password: string): Promise<Dispositivo> {
+  return conTraduccion('mozo', () =>
+    api<Dispositivo>('/auth/mozo/login', {
+      method: 'POST',
+      body: JSON.stringify({ tokenStaff, nombreUsuario, password }),
+    }),
+  )
+}
+
+// POST /auth/credencial (P-29, P-30, P-31 y P-32b). Devuelve la sesión nueva, ya sin la marca.
+export function elegirCredencial(credencial: CredencialNueva): Promise<Sesion> {
+  return conTraduccion('credencial', () =>
+    api<Sesion>('/auth/credencial', { method: 'POST', body: JSON.stringify(credencial) }),
   )
 }
 

@@ -1,22 +1,25 @@
 // P-04 / P-04b / P-22: login con nombre y PIN para Mozo, Caja y Cocina. Ruta: /staff/:token
-// P-32 (mozo sin cookie de dispositivo) va en otro PR: acá solo se traduce el error.
+// El mozo con su cookie de dispositivo va directo a su PIN; sin ella, el PIN da CONTRASENA_REQUERIDA y sigue P-32.
 import { useEffect, useState, type FormEvent } from 'react'
-import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
   loginConPin,
   obtenerDatosStaff,
+  obtenerDispositivo,
   traducirError,
   type DatosStaff,
   type FalloLogin,
   type Usuario,
 } from '../../../compartido/api/auth'
 import { useSesion } from '../../../compartido/sesion/SesionContext'
-import { rutaInicial } from '../../../compartido/sesion/rutas'
+import { rutaDeEntrada } from '../../../compartido/sesion/rutas'
+import { recordarTokenStaff } from '../../../compartido/sesion/tokenStaff'
+import AvisoDeFallo from '../componentes/AvisoDeFallo'
+import FormularioMozo from '../componentes/FormularioMozo'
+import SesionAbierta from '../componentes/SesionAbierta'
 import TecladoPin from '../componentes/TecladoPin'
 import { textoDeFallo } from '../componentes/textoDeFallo'
-
-const PIN_MIN = 4
-const PIN_MAX = 10
+import VisorPin, { PIN_MAX, PIN_MIN } from '../componentes/VisorPin'
 
 export default function LoginPin() {
   const { token = '' } = useParams()
@@ -25,23 +28,36 @@ export default function LoginPin() {
 
   const [staff, setStaff] = useState<DatosStaff | null>(null)
   const [elegido, setElegido] = useState<Usuario | null>(null)
+  const [pidiendoContrasena, setPidiendoContrasena] = useState(false)
   const [pin, setPin] = useState('')
   const [fallo, setFallo] = useState<FalloLogin | null>(null)
   const [enviando, setEnviando] = useState(false)
 
+  // La lista y el dispositivo juntos, así no se ve la lista y después salta al PIN.
+  // El mozo del dispositivo se usa solo si está en la lista de este local.
   useEffect(() => {
     let activo = true
-    obtenerDatosStaff(token)
-      .then((datos) => activo && setStaff(datos))
+    Promise.all([obtenerDatosStaff(token), obtenerDispositivo()])
+      .then(([datos, dispositivo]) => {
+        if (!activo) return
+        recordarTokenStaff(token)
+        setStaff(datos)
+        const mozo = dispositivo && datos.usuarios.find((u) => u.id === dispositivo.id)
+        if (mozo) setElegido(mozo)
+      })
       .catch((err) => activo && setFallo(traducirError(err)))
     return () => {
       activo = false
     }
   }, [token])
 
-  // Si ya hay una sesión activa, no tiene sentido mostrar el login.
-  if (sesion && !sesion.debeCambiarCredencial) {
-    return <Navigate to={rutaInicial(sesion.rol)} replace />
+  if (sesion) return <SesionAbierta sesion={sesion} destino={rutaDeEntrada(sesion, token)} />
+
+  function volverALaLista() {
+    setElegido(null)
+    setPidiendoContrasena(false)
+    setPin('')
+    setFallo(null)
   }
 
   async function enviar(e: FormEvent) {
@@ -52,12 +68,13 @@ export default function LoginPin() {
     try {
       const nueva = await loginConPin(token, elegido.id, pin)
       guardarSesion(nueva)
-      navigate(nueva.debeCambiarCredencial ? `/staff/${token}/elegir-pin` : rutaInicial(nueva.rol), {
-        replace: true,
-      })
+      navigate(rutaDeEntrada(nueva, token), { replace: true })
     } catch (err) {
       setPin('')
-      setFallo(traducirError(err))
+      const f = traducirError(err)
+      // Mozo sin cookie de dispositivo: P-32. Se compara el codigo, no el texto.
+      if (f.motivo === 'contrasena-requerida') setPidiendoContrasena(true)
+      else setFallo(f)
     } finally {
       setEnviando(false)
     }
@@ -70,13 +87,19 @@ export default function LoginPin() {
         <p className="mt-1 text-center text-sm text-secundario">{staff?.nombreLocal ?? 'Ingreso para el personal'}</p>
 
         <div className="mt-6 rounded-2xl border border-linea bg-tarjeta p-6">
-          {fallo && (
-            <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {textoDeFallo(fallo)}
-            </div>
-          )}
+          {fallo && <AvisoDeFallo className="mb-4">{textoDeFallo(fallo)}</AvisoDeFallo>}
 
-          {!elegido ? (
+          {pidiendoContrasena ? (
+            <FormularioMozo
+              tokenStaff={token}
+              onHabilitado={(mozo) => {
+                setElegido({ id: mozo.id, nombre: mozo.nombre })
+                setPidiendoContrasena(false)
+                setFallo(null)
+              }}
+              onVolver={volverALaLista}
+            />
+          ) : !elegido ? (
             <section>
               <h2 className="mb-3 text-sm font-medium">¿Quién sos?</h2>
               {staff === null && !fallo && <p className="text-sm text-secundario">Cargando…</p>}
@@ -101,29 +124,12 @@ export default function LoginPin() {
             <form onSubmit={enviar}>
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-sm font-medium">Hola, {elegido.nombre}. Ingresá tu PIN.</h2>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setElegido(null)
-                    setPin('')
-                    setFallo(null)
-                  }}
-                  className="text-sm text-primario underline"
-                >
+                <button type="button" onClick={volverALaLista} className="text-sm text-primario underline">
                   Cambiar
                 </button>
               </div>
 
-              <div
-                aria-live="polite"
-                aria-label={`PIN de ${pin.length} dígitos`}
-                className="flex h-16 items-center justify-center rounded-xl border border-linea bg-fondo text-4xl tracking-[0.3em]"
-              >
-                {pin ? '•'.repeat(pin.length) : <span className="text-linea">••••</span>}
-              </div>
-              <p className="mb-4 mt-1 text-center text-xs text-secundario">
-                {pin.length} de {PIN_MIN} a {PIN_MAX} dígitos
-              </p>
+              <VisorPin pin={pin} />
 
               <TecladoPin valor={pin} onCambio={setPin} max={PIN_MAX} deshabilitado={enviando} />
 
