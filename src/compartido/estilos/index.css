@@ -8,7 +8,19 @@
   --color-texto: #2A211D;
   --color-secundario: #6E635C;
   --color-primario: #4B3027;
+  --color-texto-boton: #FFFFFF;
   --color-suave: #DCEDE4;
+
+  /* Se cargan en index.html. Inter va en el cliente y en el acceso (font-inter). */
+  --font-fraunces: "Fraunces", Georgia, serif;
+  --font-inter: "Inter", system-ui, sans-serif;
+}
+
+/* Títulos: Fraunces SemiBold con los ejes del Mockup */
+@utility titulo {
+  font-family: var(--font-fraunces);
+  font-weight: 600;
+  font-variation-settings: "SOFT" 0, "WONK" 1;
 }
 
 body {
