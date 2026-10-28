@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { ItemCarrito } from '../../../compartido/tipos/carrito'
 import iconoNoDisponible from '../../../compartido/ui/iconos/ban.svg'
 import iconoMenos from '../../../compartido/ui/iconos/minus.svg'
@@ -29,6 +29,16 @@ export default function FilaPedido({ item, noDisponible, onCantidad, onQuitar, o
   const [editando, setEditando] = useState(false)
   const [borrador, setBorrador] = useState('')
   const idNota = useId()
+  const botonNota = useRef<HTMLButtonElement>(null)
+  const devolverFoco = useRef(false)
+
+  // Al cerrar con "Listo", "Listo" desaparece: el foco vuelve al botón que abrió la nota, para no quedar en el body.
+  useEffect(() => {
+    if (!editando && devolverFoco.current) {
+      devolverFoco.current = false
+      botonNota.current?.focus()
+    }
+  }, [editando])
 
   function abrirNota() {
     setBorrador(observacion ?? '')
@@ -86,7 +96,14 @@ export default function FilaPedido({ item, noDisponible, onCantidad, onQuitar, o
       </div>
 
       {editando ? (
-        <div className="flex flex-col gap-1.5 pt-1">
+        // Si se toca otra cosa (por ejemplo "Enviar pedido") sin "Listo", la nota se guarda igual. Pasar con Tab
+        // del campo a "Listo" no cuenta: si se guardara ahí, "Listo" desaparecería antes de recibir el foco.
+        <div
+          className="flex flex-col gap-1.5 pt-1"
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget)) guardarNota()
+          }}
+        >
           <label htmlFor={idNota} className="text-[13px] font-medium text-texto">
             Nota para cocina
           </label>
@@ -94,8 +111,6 @@ export default function FilaPedido({ item, noDisponible, onCantidad, onQuitar, o
             id={idNota}
             value={borrador}
             onChange={(e) => setBorrador(e.target.value)}
-            // Si se toca otra cosa (por ejemplo "Enviar pedido") sin "Listo", la nota se guarda igual.
-            onBlur={guardarNota}
             maxLength={LARGO_NOTA}
             rows={2}
             autoFocus
@@ -107,7 +122,10 @@ export default function FilaPedido({ item, noDisponible, onCantidad, onQuitar, o
             </p>
             <button
               type="button"
-              onClick={guardarNota}
+              onClick={() => {
+                devolverFoco.current = true
+                guardarNota()
+              }}
               className="flex h-11 items-center justify-center rounded-[14px] border-[1.5px] border-primario px-4 text-[15px] font-semibold text-primario"
             >
               Listo
@@ -118,13 +136,13 @@ export default function FilaPedido({ item, noDisponible, onCantidad, onQuitar, o
         <div className="flex items-center gap-2">
           <img src={iconoNota18} alt="" width={18} height={18} className="shrink-0" />
           <p className="min-w-0 flex-1 text-[13px] break-words text-texto">Nota para cocina: {observacion}</p>
-          <button type="button" onClick={abrirNota} className={enlace}>
+          <button type="button" ref={botonNota} onClick={abrirNota} className={enlace}>
             <img src={iconoEditar} alt="" width={20} height={20} />
             Editar<span className="sr-only"> la nota de {producto.nombre}</span>
           </button>
         </div>
       ) : (
-        <button type="button" onClick={abrirNota} className={`${enlace} w-fit`}>
+        <button type="button" ref={botonNota} onClick={abrirNota} className={`${enlace} w-fit`}>
           <img src={iconoNota} alt="" width={20} height={20} />
           Agregar nota para cocina<span className="sr-only"> de {producto.nombre}</span>
         </button>

@@ -16,7 +16,8 @@ export default function FiltrosEtiquetas({
   }
 
   return (
-    <div role="group" aria-label="Filtrar por etiquetas" className="-mx-6 flex gap-2 overflow-x-auto px-6">
+    // El py-1 deja lugar al contorno de foco, que el overflow-x-auto recortaba; el -my-1 lo compensa.
+    <div role="group" aria-label="Filtrar por etiquetas" className="-mx-6 -my-1 flex gap-2 overflow-x-auto px-6 py-1">
       <Chip elegido={elegidas.length === 0} onClick={() => onCambiar([])}>
         Todo
       </Chip>

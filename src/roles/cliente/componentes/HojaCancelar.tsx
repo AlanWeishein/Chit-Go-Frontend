@@ -19,11 +19,16 @@ export default function HojaCancelar({
   const volver = useRef<HTMLButtonElement>(null)
 
   // showModal deja el foco en el primer botón: se pasa a "No, volver", así un Enter apurado no cancela.
+  // Al cerrar, el foco vuelve al botón que abrió la hoja (si sigue en pantalla) y no queda en el body.
   useEffect(() => {
     const dialogo = ref.current
+    const abrio = document.activeElement instanceof HTMLElement ? document.activeElement : null
     if (dialogo && !dialogo.open) dialogo.showModal()
     volver.current?.focus()
-    return () => dialogo?.close()
+    return () => {
+      dialogo?.close()
+      if (abrio?.isConnected) abrio.focus()
+    }
   }, [])
 
   return (
