@@ -6,3 +6,7 @@ export function precio(monto: number): string {
 export function cantidadDePlatos(n: number): string {
   return n === 1 ? '1 plato' : `${n} platos`
 }
+
+export function cantidadDePedidos(n: number): string {
+  return n === 1 ? '1 pedido' : `${n} pedidos`
+}

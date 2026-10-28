@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { Carta } from '../../../compartido/tipos/menu';
-import { obtenerCarta, traducirError } from '../../../compartido/api/cliente';
+import { obtenerCarta, obtenerEstadoDeSesion, traducirError } from '../../../compartido/api/cliente';
 import iconoBolsa from '../../../compartido/ui/iconos/bag.svg';
-import iconoCheckBlanco from '../../../compartido/ui/iconos/check-blanco.svg';
 import iconoInfo from '../../../compartido/ui/iconos/info.svg';
+import iconoCuenta from '../../../compartido/ui/iconos/receipt-blanco.svg';
 import BarraDeAbajo from '../componentes/BarraDeAbajo';
 import EncabezadoMesa from '../componentes/EncabezadoMesa';
 import FiltrosEtiquetas from '../componentes/FiltrosEtiquetas';
@@ -15,7 +15,6 @@ import SinPlatos from '../componentes/SinPlatos';
 import { cantidadDePlatos, precio } from '../formato';
 import { useCarrito } from '../useCarrito';
 import { useEntradaMesa } from '../useEntradaMesa';
-import type { EstadoVuelta } from './PaginaPedidoCliente';
 
 // La carta no trae la lista de etiquetas: los chips salen de las que tienen los platos de la carta sin filtrar.
 function etiquetasDe(carta: Carta): string[] {
@@ -37,17 +36,23 @@ export const PaginaMenuCliente: React.FC = () => {
   // El carrito vive en el celular (localStorage) y lo comparte con P-02: aguanta ir y venir y recargar.
   const carrito = useCarrito(token, entrada.estado === 'lista' ? entrada.sesion.tokenSesion : null);
 
-  // Al volver de P-02 con el pedido enviado. Se borra del historial, así al recargar no vuelve a aparecer.
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [pedidoEnviado] = useState(() => (location.state as EstadoVuelta | null)?.pedidoEnviado === true);
-  useEffect(() => {
-    if (!pedidoEnviado) return;
-    navigate(location.pathname, { replace: true, state: null });
-    window.scrollTo({ top: 0 });
-  }, [pedidoEnviado, navigate, location.pathname]);
-
   const mesaLista = entrada.estado === 'lista';
+  const tokenIniciador = entrada.estado === 'lista' && entrada.sesion.esIniciador ? entrada.sesion.tokenSesion : null;
+
+  // Si el iniciador ya mandó pedidos, la carta lleva a "Mi cuenta" (P-03). Si no se puede saber, no se muestra.
+  const [cuenta, setCuenta] = useState<{ pedidos: number; total: number } | null>(null);
+  useEffect(() => {
+    if (tokenIniciador === null) return;
+    let activo = true;
+    obtenerEstadoDeSesion(tokenIniciador)
+      .then((e) => {
+        if (activo && e.pedidos.length > 0) setCuenta({ pedidos: e.pedidos.length, total: e.total });
+      })
+      .catch(() => {});
+    return () => {
+      activo = false;
+    };
+  }, [tokenIniciador]);
 
   // La carta va aparte de la entrada: si falla, "Reintentar" la vuelve a pedir sin abrir otra sesión.
   // Mientras llega la carta filtrada se sigue viendo la anterior, así la pantalla no salta.
@@ -76,6 +81,7 @@ export const PaginaMenuCliente: React.FC = () => {
   }
 
   const { numero, sesion } = entrada;
+  const rutaCuenta = `/mesa/${encodeURIComponent(token)}/cuenta`;
   const onAgregar = sesion.esIniciador ? carrito.agregar : undefined;
   const { platos: platosEnCarrito, total } = carrito;
 
@@ -131,17 +137,12 @@ export const PaginaMenuCliente: React.FC = () => {
   return (
     <div className="min-h-screen bg-fondo font-inter leading-[normal] text-texto">
       <div className="mx-auto max-w-lg pb-36">
-        <EncabezadoMesa numero={numero} esIniciador={sesion.esIniciador} />
+        <EncabezadoMesa
+          numero={numero}
+          esIniciador={sesion.esIniciador}
+          rutaCuenta={cuenta !== null ? rutaCuenta : undefined}
+        />
         <main className="flex flex-col gap-5 px-6 pt-2">
-          {pedidoEnviado && (
-            <p
-              role="status"
-              className="flex items-start gap-2.5 rounded-[14px] bg-primario p-3.5 text-sm font-medium text-texto-boton"
-            >
-              <img src={iconoCheckBlanco} alt="" width={20} height={20} className="shrink-0" />
-              Mandamos tu pedido. Antes de pasar a cocina, Caja le da una mirada.
-            </p>
-          )}
           {!sesion.esIniciador && (
             <p className="flex items-start gap-3 rounded-[14px] bg-linea p-3.5 text-[13px] text-texto">
               <img src={iconoInfo} alt="" width={20} height={20} className="shrink-0" />
@@ -155,6 +156,19 @@ export const PaginaMenuCliente: React.FC = () => {
       </div>
 
       <BarraDeAbajo tokenSesion={sesion.tokenSesion}>
+        {/* Con algo en el carrito va "Ver mi pedido"; con el carrito vacío y pedidos mandados, "Mi cuenta". */}
+        {sesion.esIniciador && platosEnCarrito === 0 && cuenta !== null && (
+          <Link
+            to={rutaCuenta}
+            className="flex h-[60px] min-w-0 flex-1 items-center justify-center gap-2 rounded-[14px] bg-primario px-[18px]"
+          >
+            <img src={iconoCuenta} alt="" width={20} height={20} />
+            <span className="flex flex-col whitespace-nowrap">
+              <span className="text-[15px] font-semibold text-texto-boton">Mi cuenta</span>
+              <span className="text-[13px] text-linea">Total {precio(cuenta.total)}</span>
+            </span>
+          </Link>
+        )}
         {sesion.esIniciador && platosEnCarrito > 0 && (
           <Link
             to={`/mesa/${encodeURIComponent(token)}/pedido`}

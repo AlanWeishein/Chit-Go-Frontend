@@ -15,15 +15,13 @@ import iconoEnviar from '../../../compartido/ui/iconos/send.svg'
 import BarraDeAbajo from '../componentes/BarraDeAbajo'
 import FilaPedido from '../componentes/FilaPedido'
 import PantallaDeEntrada from '../componentes/PantallaDeEntrada'
+import type { EstadoVuelta } from './PaginaCuentaCliente'
 import { cantidadDePlatos, precio } from '../formato'
 import { useCarrito } from '../useCarrito'
 import { useEntradaMesa } from '../useEntradaMesa'
 
 // El aviso de arriba. Con noDisponibles es P-02b: se va solo cuando el cliente saca esos platos.
 type Aviso = { texto: string; noDisponibles: number[] }
-
-// El estado que P-01 lee al volver de un envío que salió bien.
-export type EstadoVuelta = { pedidoEnviado: true }
 
 function textoDelFallo(fallo: FalloCliente): string {
   switch (fallo.motivo) {
@@ -97,8 +95,8 @@ export default function PaginaPedidoCliente() {
         })),
       })
       carrito.vaciar()
-      // Hasta que esté P-03 (tarea 3), vuelve a la carta con el aviso de que Caja lo revisa.
-      navigate(rutaCarta, { state: { pedidoEnviado: true } satisfies EstadoVuelta })
+      // Va a P-03 con el aviso de que Caja lo revisa. Reemplaza a P-02 en el historial: el carrito ya está vacío.
+      navigate(`${rutaCarta}/cuenta`, { replace: true, state: { pedidoEnviado: true } satisfies EstadoVuelta })
     } catch (err) {
       const fallo = traducirError(err)
       const noDisponibles =
@@ -135,10 +133,9 @@ export default function PaginaPedidoCliente() {
             </p>
           ) : (
             items.length > 0 && (
-              // Sin "Lo seguís desde «Mi cuenta»" hasta que esté P-03 (tarea 3).
               <p className="flex items-start gap-3 rounded-[14px] bg-linea p-3.5 text-[13px] text-texto">
                 <img src={iconoInfo} alt="" width={20} height={20} className="shrink-0" />
-                Antes de pasar a cocina, Caja le da una mirada a tu pedido.
+                Antes de pasar a cocina, Caja le da una mirada a tu pedido. Lo seguís desde «Mi cuenta».
               </p>
             )
           )}
