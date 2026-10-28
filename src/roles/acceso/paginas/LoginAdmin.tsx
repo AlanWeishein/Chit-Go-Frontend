@@ -6,6 +6,7 @@ import { useSesion } from '../../../compartido/sesion/SesionContext'
 import { rutaDeEntrada } from '../../../compartido/sesion/rutas'
 import { leerTokenStaff } from '../../../compartido/sesion/tokenStaff'
 import AvisoDeFallo from '../componentes/AvisoDeFallo'
+import { campo } from '../componentes/CampoContrasena'
 import SesionAbierta from '../componentes/SesionAbierta'
 import { textoDeFallo } from '../componentes/textoDeFallo'
 
@@ -42,9 +43,6 @@ export default function LoginAdmin() {
       setEnviando(false)
     }
   }
-
-  const campo =
-    'mt-1 block w-full rounded-lg border border-linea bg-fondo px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primario'
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-fondo p-6 text-texto">

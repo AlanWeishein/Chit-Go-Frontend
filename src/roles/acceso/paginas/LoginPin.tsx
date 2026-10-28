@@ -16,6 +16,7 @@ import { rutaDeEntrada } from '../../../compartido/sesion/rutas'
 import { recordarTokenStaff } from '../../../compartido/sesion/tokenStaff'
 import AvisoDeFallo from '../componentes/AvisoDeFallo'
 import FormularioMozo from '../componentes/FormularioMozo'
+import { enlace } from '../componentes/MarcoAcceso'
 import SesionAbierta from '../componentes/SesionAbierta'
 import TecladoPin from '../componentes/TecladoPin'
 import { textoDeFallo } from '../componentes/textoDeFallo'
@@ -112,7 +113,7 @@ export default function LoginPin() {
                         setElegido(u)
                         setFallo(null)
                       }}
-                      className="w-full rounded-xl border border-linea bg-fondo py-4 font-semibold hover:bg-suave"
+                      className="w-full rounded-xl border border-secundario bg-fondo py-4 font-semibold hover:bg-suave"
                     >
                       {u.nombre}
                     </button>
@@ -124,7 +125,7 @@ export default function LoginPin() {
             <form onSubmit={enviar}>
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-sm font-medium">Hola, {elegido.nombre}. Ingresá tu PIN.</h2>
-                <button type="button" onClick={volverALaLista} className="text-sm text-primario underline">
+                <button type="button" onClick={volverALaLista} className={enlace}>
                   Cambiar
                 </button>
               </div>

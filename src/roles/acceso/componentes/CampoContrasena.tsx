@@ -3,9 +3,9 @@ import { useState } from 'react'
 export const PASSWORD_MIN = 8
 export const PASSWORD_MAX = 64
 
-// El mismo campo que LoginAdmin, con 48 px de alto como pide el DESIGN.md.
+// El campo de todo el acceso, con 48 px de alto y borde secundario (3:1 contra la tarjeta) como pide el DESIGN.md.
 export const campo =
-  'mt-1 block h-12 w-full rounded-lg border border-linea bg-fondo px-3 focus:outline-none focus:ring-2 focus:ring-primario'
+  'mt-1 block h-12 w-full rounded-lg border border-secundario bg-fondo px-3 focus:outline-none focus:ring-2 focus:ring-primario'
 
 interface Props {
   id: string
