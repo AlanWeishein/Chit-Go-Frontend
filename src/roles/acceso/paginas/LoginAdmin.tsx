@@ -1,9 +1,13 @@
 // P-12: login con email y contraseña para Admin y Gerente/Dueño. Ruta: /admin/login
 import { useState, type FormEvent } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { loginAdmin, traducirError, type FalloLogin } from '../../../compartido/api/auth'
 import { useSesion } from '../../../compartido/sesion/SesionContext'
-import { rutaInicial } from '../../../compartido/sesion/rutas'
+import { rutaDeEntrada } from '../../../compartido/sesion/rutas'
+import { leerTokenStaff } from '../../../compartido/sesion/tokenStaff'
+import AvisoDeFallo from '../componentes/AvisoDeFallo'
+import { campo } from '../componentes/CampoContrasena'
+import SesionAbierta from '../componentes/SesionAbierta'
 import { textoDeFallo } from '../componentes/textoDeFallo'
 
 const PASSWORD_MIN = 8
@@ -18,9 +22,8 @@ export default function LoginAdmin() {
   const [fallo, setFallo] = useState<FalloLogin | null>(null)
   const [enviando, setEnviando] = useState(false)
 
-  if (sesion && !sesion.debeCambiarCredencial) {
-    return <Navigate to={rutaInicial(sesion.rol)} replace />
-  }
+  if (sesion) return <SesionAbierta sesion={sesion} destino={rutaDeEntrada(sesion, leerTokenStaff())} />
+
 
   const valido = email.trim() !== '' && password.length >= PASSWORD_MIN && password.length <= PASSWORD_MAX
 
@@ -32,10 +35,7 @@ export default function LoginAdmin() {
     try {
       const nueva = await loginAdmin(email.trim(), password)
       guardarSesion(nueva)
-      // TODO: confirmar la ruta del cambio de contraseña obligatorio (queda fuera de este PR)
-      navigate(nueva.debeCambiarCredencial ? '/admin/cambiar-contrasena' : rutaInicial(nueva.rol), {
-        replace: true,
-      })
+      navigate(rutaDeEntrada(nueva, null), { replace: true })
     } catch (err) {
       setPassword('')
       setFallo(traducirError(err))
@@ -44,9 +44,6 @@ export default function LoginAdmin() {
     }
   }
 
-  const campo =
-    'mt-1 block w-full rounded-lg border border-linea bg-fondo px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primario'
-
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-fondo p-6 text-texto">
       <div className="w-full max-w-sm">
@@ -54,11 +51,7 @@ export default function LoginAdmin() {
         <p className="mt-1 text-center text-sm text-secundario">Ingreso para Admin y Dueño</p>
 
         <form onSubmit={enviar} className="mt-6 space-y-4 rounded-2xl border border-linea bg-tarjeta p-6">
-          {fallo && (
-            <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {textoDeFallo(fallo)}
-            </div>
-          )}
+          {fallo && <AvisoDeFallo>{textoDeFallo(fallo)}</AvisoDeFallo>}
 
           <div>
             <label htmlFor="email" className="block text-sm font-medium">
