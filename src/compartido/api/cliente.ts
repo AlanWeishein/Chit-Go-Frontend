@@ -4,6 +4,38 @@ import { api, ApiError, type ProblemDetail } from './http'
 import { guardarTokenSesion, leerTokenSesion } from '../sesion/sesionMesa'
 import type { Carta } from '../tipos/menu'
 
+/**
+ * Solicita la presencia del mozo en la mesa (RF-06 / HU-03).
+ * Disponible para cualquier sesión de la mesa (iniciador o lectura).
+ * Utiliza POST /public/avisos/llamar-mozo
+ */
+export const llamarAlMozoDesdeMesa = async (): Promise<void> => {
+  const tokenSesion = localStorage.getItem('tokenSesion');
+
+  return api<void>('/public/avisos/llamar-mozo', {
+    method: 'POST',
+    headers: {
+      'X-Session-Token': tokenSesion || '',
+    },
+  });
+};
+
+/**
+ * Solicita el cierre/cuenta de la mesa (RF-04 / HU-03).
+ * Exclusivo para la sesión iniciadora y sin pedidos pendientes de servir.
+ * Utiliza POST /public/cuenta/solicitar
+ */
+export const solicitarCuentaDesdeMesa = async (): Promise<void> => {
+  const tokenSesion = localStorage.getItem('tokenSesion');
+
+  return api<void>('/public/cuenta/solicitar', {
+    method: 'POST',
+    headers: {
+      'X-Session-Token': tokenSesion || '',
+    },
+  });
+};
+
 // GET /public/mesas/{tokenQR}. Una mesa inhabilitada responde 200 con disponible: false.
 export interface EstadoMesa {
   numero: string
