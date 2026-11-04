@@ -1,48 +1,57 @@
-import { useState } from 'react'
-import { atenderAviso, type AvisoMozo } from '../../../compartido/api/mozo'
-import { ApiError } from '../../../compartido/api/http'
+import type { Aviso } from '../../../compartido/api/mozo'
+import { haceCuanto, horaDe } from '../tiempo'
+import { IconoCuenta, IconoLlamar, IconoTilde } from './Iconos'
 
-const TEXTOS_AVISO = {
-  LLAMAR_MOZO: 'La mesa está llamando al mozo.',
-  CUENTA_SOLICITADA: 'Solicitaron la cuenta.',
-  MESA_SIN_MOZO: 'Mesa abierta sin asignación.',
+export type EstadoDeTarjeta = 'pendiente' | 'enviando' | 'ya-atendido' | 'atendido'
+
+export function tituloDeAviso(a: Aviso): string {
+  if (a.tipo === 'CUENTA_SOLICITADA') return `Mesa ${a.mesa} · Pide la cuenta`
+  if (a.tipo === 'LLAMAR_MOZO') return `Mesa ${a.mesa} · Llama al mozo`
+  return `Mesa ${a.mesa} · Sin mozo asignado`
 }
 
-export default function TarjetaAviso({ aviso, onAtendido }: { aviso: AvisoMozo; onAtendido: () => void }) {
-  const [enviando, setEnviando] = useState(false)
-
-  const handleAtender = async () => {
-    if (enviando) return
-    setEnviando(true)
-    try {
-      await atenderAviso(aviso.id)
-      onAtendido()
-    } catch (error) {
-      if (error instanceof ApiError && [404, 409].includes(error.status)) {
-        onAtendido()
-      } else {
-        alert('Error al atender el aviso. Reintentá.')
-      }
-    } finally {
-      setEnviando(false)
-    }
-  }
-
-  const nombreMesa = isNaN(Number(aviso.mesa)) ? aviso.mesa : `Mesa ${aviso.mesa}`
-
+export default function TarjetaAviso({
+  aviso,
+  estado,
+  ahora,
+  alAtender,
+}: {
+  aviso: Aviso
+  estado: EstadoDeTarjeta
+  ahora: number
+  alAtender: (aviso: Aviso) => void
+}) {
+  const atendido = estado === 'atendido'
   return (
-    <article className="flex items-center justify-between rounded-2xl border border-secundario bg-tarjeta p-4">
-      <div>
-        <h3 className="text-[16px] font-semibold">{nombreMesa}</h3>
-        <p className="text-[13px] text-secundario">{TEXTOS_AVISO[aviso.tipo] || aviso.tipo}</p>
+    <li className="flex items-center gap-3 border-b border-linea py-3">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-suave text-secundario">
+        {aviso.tipo === 'CUENTA_SOLICITADA' ? <IconoCuenta /> : <IconoLlamar />}
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <p className={`font-semibold ${atendido ? 'text-secundario' : 'text-texto'}`}>{tituloDeAviso(aviso)}</p>
+        <p className="text-sm text-secundario">
+          {atendido && aviso.atendidoEn ? horaDe(aviso.atendidoEn) : haceCuanto(aviso.creadoEn, ahora)}
+        </p>
       </div>
-      <button
-        onClick={handleAtender}
-        disabled={enviando}
-        className="rounded-xl border-[1.5px] border-primario px-4 py-2 text-[15px] font-semibold text-primario disabled:opacity-50"
-      >
-        {enviando ? 'Enviando...' : 'Atendido'}
-      </button>
-    </article>
+
+      {atendido ? (
+        <span className="flex items-center gap-1 rounded-md bg-suave px-2 py-1 text-xs text-secundario">
+          <IconoTilde /> Atendido
+        </span>
+      ) : estado === 'ya-atendido' ? (
+        <span className="rounded-md bg-suave px-2 py-1 text-xs text-secundario">Ya fue atendido</span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => alAtender(aviso)}
+          disabled={estado === 'enviando'}
+          className="flex min-h-11 items-center gap-1.5 rounded-xl border-2 border-primario px-4 font-semibold text-primario disabled:opacity-60"
+        >
+          <IconoTilde />
+          {estado === 'enviando' ? 'Un momento…' : 'Atender'}
+        </button>
+      )}
+    </li>
   )
 }
