@@ -1,5 +1,6 @@
 import type { PedidoPorAprobar } from '../../../compartido/api/caja'
 import { minutosDe } from '../espera'
+import ChipDeDemora from './ChipDeDemora'
 
 interface Props {
   pedido: PedidoPorAprobar
@@ -8,7 +9,8 @@ interface Props {
   alElegir: () => void
 }
 
-// Una tarjeta de la cola de P-08. Sin precio: el back no lo manda.
+// Una tarjeta de la cola de P-08. Sin precio: el back no lo manda. Si el pedido pasó los 3 minutos (`demorado`, lo
+// decide el back), el chip "+3 min" va en lugar de los minutos y la tarjeta queda 4 px más alta, como en el Mockup.
 export default function TarjetaEnCola({ pedido, segundosDeEspera, seleccionada, alElegir }: Props) {
   const items = pedido.items.length
   const minutos = minutosDe(segundosDeEspera)
@@ -28,7 +30,11 @@ export default function TarjetaEnCola({ pedido, segundosDeEspera, seleccionada, 
         <span className="font-semibold">
           Mesa {pedido.mesa} · #{pedido.id}
         </span>
-        <span className="shrink-0 text-[13px] text-secundario">{minutos < 1 ? '< 1 min' : `${minutos} min`}</span>
+        {pedido.demorado ? (
+          <ChipDeDemora texto="+3 min" />
+        ) : (
+          <span className="shrink-0 text-[13px] text-secundario">{minutos < 1 ? '< 1 min' : `${minutos} min`}</span>
+        )}
       </span>
       <span className="text-[13px] text-secundario">
         {items} {items === 1 ? 'ítem' : 'ítems'}

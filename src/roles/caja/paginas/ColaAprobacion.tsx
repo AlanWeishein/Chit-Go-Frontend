@@ -12,6 +12,8 @@ import iconoNoDisponible from '../../../compartido/ui/iconos/ban.svg'
 import iconoDisponible from '../../../compartido/ui/iconos/check-14.svg'
 import AvisoDeFallo from '../../acceso/componentes/AvisoDeFallo'
 import AccionesDePedido from '../componentes/AccionesDePedido'
+import ChipDeDemora from '../componentes/ChipDeDemora'
+import SelectorDeCola, { type FiltroDeCola } from '../componentes/SelectorDeCola'
 import TarjetaEnCola from '../componentes/TarjetaEnCola'
 import { useDatosCaja } from '../datosCaja'
 import { horaDe, minutosDe, useSegundosDesde } from '../espera'
@@ -45,6 +47,7 @@ export default function ColaAprobacion() {
   const { cola } = useDatosCaja()
   const { pedidos, recibidaEn, cargando, error, recargar } = cola
   const [elegidoId, setElegidoId] = useState<number | null>(null)
+  const [filtro, setFiltro] = useState<FiltroDeCola>('todos')
   const desdeLaRespuesta = useSegundosDesde(recibidaEn)
 
   // El motivo y el bloqueo se guardan con el id del pedido al que pertenecen: valen solo para ese, y al pasar a
@@ -62,8 +65,13 @@ export default function ColaAprobacion() {
     recargar()
   }, [recargar])
 
-  // Al entrar va el primero. Si el elegido ya no está en la lista, también.
-  const elegido = pedidos.find((p) => p.id === elegidoId) ?? pedidos[0]
+  // `demorado` lo decide el back (a los 181 segundos): no se calcula con la espera local. Con "Con alerta" la lista
+  // muestra solo esos. Como la cola va del más viejo al más nuevo, los demorados son siempre los primeros.
+  const conAlerta = pedidos.filter((p) => p.demorado).length
+  const visibles = filtro === 'alerta' ? pedidos.filter((p) => p.demorado) : pedidos
+
+  // Al entrar va el primero. Si el elegido ya no está en la lista que se ve, también.
+  const elegido = visibles.find((p) => p.id === elegidoId) ?? visibles[0]
   const esperaDe = (p: PedidoPorAprobar) => p.segundosDeEspera + desdeLaRespuesta
   const motivo = elegido && motivoElegido?.pedidoId === elegido.id ? motivoElegido.motivo : undefined
 
@@ -101,13 +109,16 @@ export default function ColaAprobacion() {
 
   return (
     <div className="flex min-h-full flex-col gap-4 px-6 pt-6 pb-4">
-      <header className="flex min-h-[52px] flex-col justify-center gap-0.5 leading-[normal]">
-        <h1 className="titulo text-[25px]">Cola de aprobación</h1>
-        {hayCola && (
-          <p className="text-[13px] text-secundario">
-            {pedidos.length} {pedidos.length === 1 ? 'pendiente' : 'pendientes'} · por orden de llegada
-          </p>
-        )}
+      <header className="flex min-h-[52px] items-center justify-between gap-4">
+        <div className="flex flex-col gap-0.5 leading-[normal]">
+          <h1 className="titulo text-[25px]">Cola de aprobación</h1>
+          {hayCola && (
+            <p className="text-[13px] text-secundario">
+              {pedidos.length} {pedidos.length === 1 ? 'pendiente' : 'pendientes'} · por orden de llegada
+            </p>
+          )}
+        </div>
+        {!cargando && !error && <SelectorDeCola filtro={filtro} conAlerta={conAlerta} alCambiar={setFiltro} />}
       </header>
 
       {cargando ? (
@@ -127,12 +138,14 @@ export default function ColaAprobacion() {
         <div className="flex flex-col gap-4">
           {/* Si era el último pedido y salió de la lista, el aviso de por qué no se aplicó no se pierde. */}
           {aviso && <AvisoDelPedido texto={aviso} />}
-          <p className="py-10 text-center text-secundario">No hay pedidos esperando.</p>
+          <p className="py-10 text-center text-secundario">
+            {filtro === 'alerta' ? 'Ningún pedido pasó los 3 minutos.' : 'No hay pedidos esperando.'}
+          </p>
         </div>
       ) : (
         <div className="flex items-start gap-4">
           <div className="flex w-60 shrink-0 flex-col gap-2">
-            {pedidos.map((p, i) => (
+            {visibles.map((p, i) => (
               <div key={p.id} className="contents">
                 {i < 2 && <p className={rotulo}>{i === 0 ? 'Siguiente' : 'Después'}</p>}
                 <TarjetaEnCola
@@ -181,13 +194,16 @@ function Detalle({
   return (
     <section aria-label="Pedido elegido" className="flex min-w-0 flex-1 flex-col gap-3 pl-4">
       {aviso}
-      <div>
-        <h2 className="titulo text-xl leading-[normal]">
-          Mesa {pedido.mesa} · Pedido #{pedido.id}
-        </h2>
-        <p className="text-[13px] leading-[normal] text-secundario">
-          Recibido {horaDe(pedido.enviadoEn)} · esperando hace {minutos < 1 ? 'menos de 1 min' : `${minutos} min`}
-        </p>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="titulo text-xl leading-[normal]">
+            Mesa {pedido.mesa} · Pedido #{pedido.id}
+          </h2>
+          <p className="text-[13px] leading-[normal] text-secundario">
+            Recibido {horaDe(pedido.enviadoEn)} · esperando hace {minutos < 1 ? 'menos de 1 min' : `${minutos} min`}
+          </p>
+        </div>
+        {pedido.demorado && <ChipDeDemora texto="Espera +3 min" />}
       </div>
 
       <table className="w-full table-fixed border-collapse text-left text-[13px] leading-[normal]">
