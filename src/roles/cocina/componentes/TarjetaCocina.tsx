@@ -1,4 +1,6 @@
 import type { PedidoDeCocina } from '../../../compartido/api/cocina'
+import iconoEmpezar from '../../../compartido/ui/iconos/chef-blanco.svg'
+import iconoListo from '../../../compartido/ui/iconos/check-blanco.svg'
 import iconoReloj from '../../../compartido/ui/iconos/clock-16.svg'
 import iconoPrioridad from '../../../compartido/ui/iconos/flag-blanco.svg'
 import iconoNota from '../../../compartido/ui/iconos/note-16.svg'
@@ -10,6 +12,14 @@ interface Props {
   pedido: PedidoDeCocina
   columna: ColumnaDeCocina
   ahora: number
+  enviando: boolean // el pedido está a medio mandar o esperando la cola nueva: el botón queda quieto
+  alAccionar: () => void // "Empezar" en En cola, "Marcar listo" en En preparación
+}
+
+// El botón de abajo de cada columna, como el nodo 2009:6120. "Listo" no tiene.
+const ACCION: Partial<Record<ColumnaDeCocina, { texto: string; icono: string }>> = {
+  enCola: { texto: 'Empezar', icono: iconoEmpezar },
+  enPreparacion: { texto: 'Marcar listo', icono: iconoListo },
 }
 
 // Lo que va arriba a la derecha: en "En cola" el tiempo desde que Caja lo aprobó, en "En preparación" desde que se
@@ -20,8 +30,10 @@ function tiempoDe(pedido: PedidoDeCocina, columna: ColumnaDeCocina, ahora: numbe
   return transcurrido(pedido.aprobadoEn, ahora)
 }
 
-// Una tarjeta del KDS (P-11). Solo muestra: los botones "Empezar" y "Marcar listo" van en la tarea 2.
-export default function TarjetaCocina({ pedido, columna, ahora }: Props) {
+// Una tarjeta del KDS (P-11).
+export default function TarjetaCocina({ pedido, columna, ahora, enviando, alAccionar }: Props) {
+  const accion = ACCION[columna]
+
   return (
     <article className="flex shrink-0 flex-col gap-2.5 rounded-2xl border border-linea bg-tarjeta p-3.5 leading-[normal]">
       <div className="flex items-center justify-between gap-3">
@@ -59,6 +71,24 @@ export default function TarjetaCocina({ pedido, columna, ahora }: Props) {
       ))}
 
       {columna === 'listos' && <p className="text-[13px] text-secundario">Esperando que el mozo lo sirva</p>}
+
+      {accion && (
+        <button
+          type="button"
+          onClick={alAccionar}
+          disabled={enviando}
+          className="flex h-[52px] w-full shrink-0 items-center justify-center gap-2 rounded-[14px] bg-primario px-[18px] text-[15px] font-semibold text-texto-boton focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primario disabled:cursor-not-allowed disabled:opacity-38"
+        >
+          {enviando ? (
+            'Un momento…'
+          ) : (
+            <>
+              <img src={accion.icono} alt="" width={20} height={20} />
+              {accion.texto}
+            </>
+          )}
+        </button>
+      )}
     </article>
   )
 }

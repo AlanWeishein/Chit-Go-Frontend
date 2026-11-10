@@ -1,11 +1,13 @@
 // La pantalla de cocina, el KDS (P-11, HU-11): la barra de arriba y las tres columnas, En cola, En preparación y
 // Listo. Pensada para una tablet apaisada o un monitor, para leerse de lejos. La barra de Avisos del Mockup no va.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { obtenerCola, type VistaDeCocina } from '../../../compartido/api/cocina'
-import { textoDelError } from '../../../compartido/api/errores'
+import { empezarPedido, marcarListo, obtenerCola, type VistaDeCocina } from '../../../compartido/api/cocina'
+import { statusDe, textoDelError } from '../../../compartido/api/errores'
 import { useSesion } from '../../../compartido/sesion/SesionContext'
+import iconoAlerta from '../../../compartido/ui/iconos/alert.svg'
 import iconoSalir from '../../../compartido/ui/iconos/logout.svg'
 import iconoUsuarios from '../../../compartido/ui/iconos/users.svg'
+import iconoCerrar from '../../../compartido/ui/iconos/x.svg'
 import { useEnVivo } from '../../../compartido/ws/useEnVivo'
 import TarjetaCocina, { type ColumnaDeCocina } from '../componentes/TarjetaCocina'
 import { hora, useAhora } from '../tiempo'
@@ -18,27 +20,97 @@ const COLUMNAS: { clave: ColumnaDeCocina; titulo: string; vacia: string }[] = [
   { clave: 'listos', titulo: 'Listo', vacia: 'Todavía no hay pedidos listos.' },
 ]
 
+// Lo que manda el botón de cada columna. "Listo" no tiene.
+const LLAMADA: Partial<Record<ColumnaDeCocina, (id: number) => Promise<void>>> = {
+  enCola: empezarPedido,
+  enPreparacion: marcarListo,
+}
+
+const AVISO_MS = 5000
+
 export default function ColaCocina() {
   const { sesion, cerrar } = useSesion()
   const [vista, setVista] = useState<VistaDeCocina | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // `vez` cambia con cada aviso, así uno igual al anterior vuelve a contar los 5 segundos desde cero.
+  const [aviso, setAviso] = useState<{ texto: string; vez: number } | null>(null)
   const [saliendo, setSaliendo] = useState(false)
   const ahora = useAhora()
   // Si salen dos pedidos de la cola seguidos, vale solo la respuesta del último: una vieja que llega tarde no pisa.
   const ultimoPedido = useRef(0)
+  const hayVista = useRef(false)
+  const vecesAvisado = useRef(0)
+
+  // Los pedidos con el botón quieto. El número es la primera recarga que puede soltarlo: mientras la llamada está en
+  // vuelo es Infinity, y después, la recarga que se pide al volver. Una recarga que salió antes (un evento) trae la
+  // cola vieja, con el pedido todavía en su columna, y si lo soltara un segundo toque daría 409.
+  const soltarDesde = useRef(new Map<number, number>())
+  const [quietos, setQuietos] = useState<ReadonlySet<number>>(new Set())
+
+  const avisar = useCallback((texto: string) => {
+    setAviso({ texto, vez: ++vecesAvisado.current })
+  }, [])
+
+  const soltar = useCallback((recarga: number) => {
+    let cambio = false
+    for (const [id, desde] of soltarDesde.current) {
+      if (desde <= recarga) {
+        soltarDesde.current.delete(id)
+        cambio = true
+      }
+    }
+    if (cambio) setQuietos(new Set(soltarDesde.current.keys()))
+  }, [])
 
   const recargar = useCallback(() => {
     const este = ++ultimoPedido.current
     obtenerCola()
       .then((cola) => {
         if (este !== ultimoPedido.current) return
+        hayVista.current = true
         setVista(cola)
         setError(null)
+        soltar(este)
       })
       .catch((err) => {
-        if (este === ultimoPedido.current) setError(textoDelError(err))
+        if (este !== ultimoPedido.current) return
+        // Si ya hay columnas en pantalla, se quedan y el fallo va al aviso de arriba. Solo la primera carga pasa a la
+        // pantalla de error, porque no hay nada que mostrar.
+        if (hayVista.current) avisar(textoDelError(err))
+        else setError(textoDelError(err))
+        soltar(este)
       })
-  }, [])
+  }, [avisar, soltar])
+
+  // El aviso se va solo a los 5 segundos, o antes si se toca.
+  useEffect(() => {
+    if (!aviso) return
+    const id = setTimeout(() => setAviso(null), AVISO_MS)
+    return () => clearTimeout(id)
+  }, [aviso])
+
+  async function accionar(id: number, llamada: (id: number) => Promise<void>) {
+    // El estado llega un render tarde: con dos toques seguidos los dos verían el botón suelto. El Map corta el segundo.
+    if (soltarDesde.current.has(id)) return
+    soltarDesde.current.set(id, Infinity)
+    setQuietos(new Set(soltarDesde.current.keys()))
+    try {
+      await llamada(id)
+      soltarDesde.current.set(id, ultimoPedido.current + 1)
+      recargar()
+    } catch (err) {
+      avisar(textoDelError(err))
+      const status = statusDe(err)
+      // 409: otro lo movió antes. 404: Caja lo canceló. En los dos casos la cola de la pantalla está vieja.
+      if (status === 409 || status === 404) {
+        soltarDesde.current.set(id, ultimoPedido.current + 1)
+        recargar()
+      } else {
+        soltarDesde.current.delete(id)
+        setQuietos(new Set(soltarDesde.current.keys()))
+      }
+    }
+  }
 
   // useEnVivo la pide al conectar, al reconectar y con cada evento de cocina/cola (aprobado, prioridad, cancelado).
   // Se pide también al entrar, por si el WebSocket tarda o no conecta.
@@ -104,6 +176,24 @@ export default function ColaCocina() {
         </div>
       </header>
 
+      {/* Siempre en el DOM, para que el lector de pantalla lea el aviso cuando aparece. */}
+      <div role="alert" className="shrink-0">
+        {aviso && (
+          <div className="px-5 pt-4">
+            <button
+              type="button"
+              onClick={() => setAviso(null)}
+              className={`flex w-full items-center gap-3 rounded-[14px] border-[1.5px] border-primario bg-tarjeta p-3 text-left ${foco}`}
+            >
+              <img src={iconoAlerta} alt="" width={20} height={20} className="shrink-0" />
+              <span className="min-w-0 flex-1 text-[15px] font-semibold">{aviso.texto}</span>
+              <img src={iconoCerrar} alt="" width={20} height={20} className="shrink-0" />
+              <span className="sr-only">Cerrar el aviso</span>
+            </button>
+          </div>
+        )}
+      </div>
+
       {error ? (
         <div className="py-10 text-center">
           <p role="alert">{error}</p>
@@ -121,9 +211,19 @@ export default function ColaCocina() {
         <main className="flex min-h-0 flex-1 gap-4 px-5 pt-4 pb-4">
           {COLUMNAS.map((c) => (
             <Columna key={c.clave} titulo={c.titulo} vacia={c.vacia} cantidad={vista[c.clave].length}>
-              {vista[c.clave].map((p) => (
-                <TarjetaCocina key={p.id} pedido={p} columna={c.clave} ahora={ahora} />
-              ))}
+              {vista[c.clave].map((p) => {
+                const llamada = LLAMADA[c.clave]
+                return (
+                  <TarjetaCocina
+                    key={p.id}
+                    pedido={p}
+                    columna={c.clave}
+                    ahora={ahora}
+                    enviando={quietos.has(p.id)}
+                    alAccionar={() => llamada && accionar(p.id, llamada)}
+                  />
+                )
+              })}
             </Columna>
           ))}
         </main>
