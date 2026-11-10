@@ -1,9 +1,12 @@
 // P-32: usuario y contraseña del mozo, la primera vez y cada 7 días. No abre la sesión: si entra, LoginPin
-// sigue con el PIN del mozo que devuelve el back.
+// sigue con el PIN del mozo que devuelve el back. La bajada ("Cada 7 días te pedimos…") la pone LoginPin en el marco.
 import { useState, type FormEvent } from 'react'
 import { loginMozo, traducirError, type Dispositivo, type FalloLogin } from '../../../compartido/api/auth'
+import iconoFlechaDer from '../../../compartido/ui/iconos/arrow-r.svg'
+import iconoFlechaIzq from '../../../compartido/ui/iconos/arrow-l.svg'
+import iconoUsuario from '../../../compartido/ui/iconos/user.svg'
 import AvisoDeFallo from './AvisoDeFallo'
-import CampoContrasena, { campo, PASSWORD_MAX, PASSWORD_MIN } from './CampoContrasena'
+import CampoContrasena, { campoConIcono, CampoConRotulo, PASSWORD_MAX, PASSWORD_MIN } from './CampoContrasena'
 import { botonPrincipal, enlace } from './MarcoAcceso'
 import { textoDeFallo } from './textoDeFallo'
 
@@ -39,18 +42,10 @@ export default function FormularioMozo({ tokenStaff, onHabilitado, onVolver }: P
   }
 
   return (
-    <form onSubmit={enviar} className="space-y-4">
-      <div>
-        <h2 className="text-sm font-medium">Ingresá tu usuario y contraseña.</h2>
-        <p className="mt-1 text-xs text-secundario">Te los pedimos la primera vez y cada 7 días. Después va tu PIN.</p>
-      </div>
-
+    <form onSubmit={enviar} className="flex w-full flex-col gap-[18px]">
       {fallo && <AvisoDeFallo>{textoDeFallo(fallo)}</AvisoDeFallo>}
 
-      <div>
-        <label htmlFor="usuario" className="block text-sm font-medium">
-          Usuario
-        </label>
+      <CampoConRotulo id="usuario" etiqueta="Usuario" icono={iconoUsuario}>
         <input
           id="usuario"
           type="text"
@@ -60,33 +55,32 @@ export default function FormularioMozo({ tokenStaff, onHabilitado, onVolver }: P
           value={usuario}
           disabled={enviando}
           onChange={(e) => setUsuario(e.target.value)}
-          className={campo}
+          className={campoConIcono}
         />
-      </div>
+      </CampoConRotulo>
 
-      <div>
-        <CampoContrasena
-          id="password-mozo"
-          rotulo="Contraseña"
-          valor={password}
-          onCambio={setPassword}
-          autoComplete="current-password"
-          deshabilitado={enviando}
-        />
-        <p className="mt-1 text-xs text-secundario">
-          De {PASSWORD_MIN} a {PASSWORD_MAX} caracteres.
-        </p>
-      </div>
+      <CampoContrasena
+        id="password-mozo"
+        rotulo="Contraseña"
+        valor={password}
+        onCambio={setPassword}
+        autoComplete="current-password"
+        deshabilitado={enviando}
+      />
 
       <button type="submit" disabled={enviando || !valido} className={botonPrincipal}>
+        <img src={iconoFlechaDer} alt="" width={20} height={20} />
         {enviando ? 'Entrando…' : 'Entrar'}
       </button>
 
-      <div className="text-center">
-        <button type="button" onClick={onVolver} className={enlace}>
-          Volver a la lista de nombres
-        </button>
-      </div>
+      <p className="max-w-[300px] self-center text-center text-[13px] text-secundario">
+        El usuario y la contraseña te los da el Admin cuando te da de alta.
+      </p>
+
+      <button type="button" onClick={onVolver} className={`${enlace} self-center`}>
+        <img src={iconoFlechaIzq} alt="" width={20} height={20} />
+        Volver a la lista de nombres
+      </button>
     </form>
   )
 }

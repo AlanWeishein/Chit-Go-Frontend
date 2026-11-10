@@ -2,14 +2,17 @@
 // El mozo elige primero la contraseña y después el PIN, y las dos van juntas en un solo POST /auth/credencial.
 // El back todavía no avisa si la contraseña del mozo es provisoria (contrasena_provisoria, 20/10): por ahora se
 // le pide siempre que tenga la marca. Cuando el back la exponga, P-32b va solo si es provisoria.
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { elegirCredencial, obtenerSesion, traducirError, type FalloLogin } from '../../../compartido/api/auth'
 import { useSesion } from '../../../compartido/sesion/SesionContext'
 import { entraConEmail, rutaInicial } from '../../../compartido/sesion/rutas'
 import AvisoDeFallo from '../componentes/AvisoDeFallo'
-import CampoContrasena, { PASSWORD_MAX, PASSWORD_MIN } from '../componentes/CampoContrasena'
-import MarcoAcceso, { botonPrincipal, enlace } from '../componentes/MarcoAcceso'
+import CampoContrasena, { campoFijo, CampoConRotulo, PASSWORD_MAX, PASSWORD_MIN } from '../componentes/CampoContrasena'
+import iconoFlechaDer from '../../../compartido/ui/iconos/arrow-r.svg'
+import iconoUsuario from '../../../compartido/ui/iconos/user.svg'
+import MarcoAcceso, { botonPrincipal, columna, enlace } from '../componentes/MarcoAcceso'
+import MarcoDosPaneles from '../componentes/MarcoDosPaneles'
 import TecladoPin from '../componentes/TecladoPin'
 import { textoDeFallo } from '../componentes/textoDeFallo'
 import VisorPin, { PIN_MAX, PIN_MIN } from '../componentes/VisorPin'
@@ -24,7 +27,11 @@ export default function ElegirPin() {
   const { sesion, cargando, guardarSesion, cerrar } = useSesion()
 
   const esMozo = sesion?.rol === 'MOZO'
+  const esCaja = sesion?.rol === 'CAJA'
   const primerPaso: Paso = esMozo ? 'contrasena' : 'pin'
+  // Al cerrar sesión la sesión queda en null y el rol se pierde: se recuerda para volver a la entrada de Caja.
+  const ultimoRol = useRef(sesion?.rol)
+  if (sesion) ultimoRol.current = sesion.rol
 
   const [paso, setPaso] = useState<Paso | null>(null)
   const [password, setPassword] = useState('')
@@ -36,7 +43,10 @@ export default function ElegirPin() {
   const [enviando, setEnviando] = useState(false)
 
   if (cargando) return <p className="p-6 text-secundario">Cargando…</p>
-  if (!sesion) return <Navigate to={`/staff/${encodeURIComponent(token)}`} replace />
+  if (!sesion) {
+    const login = `/staff/${encodeURIComponent(token)}`
+    return <Navigate to={ultimoRol.current === 'CAJA' ? `${login}/caja` : login} replace />
+  }
   if (entraConEmail(sesion.rol)) return <Navigate to="/admin/cambiar-contrasena" replace />
   if (!sesion.debeCambiarCredencial) return <Navigate to={rutaInicial(sesion.rol)} replace />
 
@@ -108,23 +118,42 @@ export default function ElegirPin() {
   }
 
   const textoDelAviso = aviso ?? (fallo ? textoDeFallo(fallo) : null)
+  const conBoton = fallo?.motivo === 'credencial-elegida' || fallo?.motivo === 'sesion-vencida'
+  const enPin = !conBoton && actual !== 'contrasena'
+  const avisoDelPin = enPin && textoDelAviso ? <AvisoDeFallo>{textoDelAviso}</AvisoDeFallo> : null
+  // P-32b, P-30, P-30b y el paso de repetir llevan sus instrucciones en la bajada; el resto, el nombre del local.
+  const bajada =
+    actual === 'contrasena' && !conBoton
+      ? `La contraseña que te dio el Admin era provisoria. Elegí una propia, de ${PASSWORD_MIN} a ${PASSWORD_MAX} caracteres.`
+      : !enPin
+        ? (sesion.local?.nombre ?? 'Ingreso para el personal')
+        : actual === 'repetir'
+          ? 'Repetí el PIN. Para confirmarlo.'
+          : aviso === NO_COINCIDEN
+            ? 'Elegí tu PIN otra vez y repetilo para confirmarlo.'
+            : 'Elegí tu PIN. El que te dio el Admin era provisorio.'
 
-  return (
-    <MarcoAcceso bajada={sesion.local?.nombre ?? 'Ingreso para el personal'}>
-      {textoDelAviso && <AvisoDeFallo className="mb-4">{textoDelAviso}</AvisoDeFallo>}
+  const cuerpo = (
+    <>
+      {textoDelAviso && !enPin && <AvisoDeFallo className="mb-4">{textoDelAviso}</AvisoDeFallo>}
 
-      {fallo?.motivo === 'credencial-elegida' || fallo?.motivo === 'sesion-vencida' ? (
+      {conBoton ? (
         <button type="button" onClick={actualizarSesion} className={botonPrincipal}>
           {fallo.motivo === 'credencial-elegida' ? 'Seguir' : 'Volver a entrar'}
         </button>
       ) : actual === 'contrasena' ? (
-        <form onSubmit={seguirConPin} className="space-y-4">
-          <div>
-            <h2 className="text-sm font-medium">Hola, {sesion.nombre}. Elegí tu contraseña.</h2>
-            <p className="mt-1 text-xs text-secundario">
-              La que te dio el Admin era provisoria. La tuya tiene que ser distinta. Después elegís tu PIN.
-            </p>
-          </div>
+        // P-32b. La sesión no trae el nombre de usuario (juan), así que el campo fijo muestra el nombre.
+        <form onSubmit={seguirConPin} className="flex w-full flex-col gap-[18px]">
+          <CampoConRotulo id="usuario-fijo" etiqueta="Usuario" icono={iconoUsuario}>
+            <input
+              id="usuario-fijo"
+              type="text"
+              readOnly
+              autoComplete="username"
+              value={sesion.nombre}
+              className={campoFijo}
+            />
+          </CampoConRotulo>
           <CampoContrasena
             id="password-nueva"
             rotulo="Contraseña nueva"
@@ -132,36 +161,31 @@ export default function ElegirPin() {
             onCambio={setPassword}
             autoComplete="new-password"
           />
-          <div>
-            <CampoContrasena
-              id="password-repetida"
-              rotulo="Repetí la contraseña"
-              valor={passwordRepetida}
-              onCambio={setPasswordRepetida}
-              autoComplete="new-password"
-            />
-            <p className="mt-1 text-xs text-secundario">
-              De {PASSWORD_MIN} a {PASSWORD_MAX} caracteres.
-            </p>
-          </div>
+          <CampoContrasena
+            id="password-repetida"
+            rotulo="Repetila"
+            valor={passwordRepetida}
+            onCambio={setPasswordRepetida}
+            autoComplete="new-password"
+          />
           <button
             type="submit"
             disabled={password.length < PASSWORD_MIN || passwordRepetida === ''}
             className={botonPrincipal}
           >
-            Seguir
+            <img src={iconoFlechaDer} alt="" width={20} height={20} />
+            Guardar y seguir
           </button>
+          <p className="text-center text-[13px] text-secundario">Desde ahora te la pedimos cada 7 días.</p>
         </form>
       ) : (
-        <form onSubmit={actual === 'pin' ? seguirARepetir : guardar}>
-          <h2 className="text-sm font-medium">
-            {actual === 'pin' ? `Hola, ${sesion.nombre}. Elegí tu PIN.` : 'Repetí el PIN.'}
-          </h2>
-          <p className="mb-3 mt-1 text-xs text-secundario">
-            {actual === 'pin' ? 'El que te dio el Admin era provisorio. El tuyo tiene que ser distinto.' : 'Para confirmarlo.'}
-          </p>
+        <form onSubmit={actual === 'pin' ? seguirARepetir : guardar} className={`${columna} ${esCaja ? 'mx-auto max-w-[288px]' : ''}`}>
+          {esCaja && <h1 className="titulo text-center text-xl">{actual === 'pin' ? 'Elegí tu PIN' : 'Repetí tu PIN'}</h1>}
 
           <VisorPin pin={actual === 'pin' ? pin : pinRepetido} />
+
+          {avisoDelPin}
+
           <TecladoPin
             valor={actual === 'pin' ? pin : pinRepetido}
             onCambio={actual === 'pin' ? setPin : setPinRepetido}
@@ -172,18 +196,43 @@ export default function ElegirPin() {
           <button
             type="submit"
             disabled={enviando || (actual === 'pin' ? pin : pinRepetido).length < PIN_MIN}
-            className={`mt-5 ${botonPrincipal}`}
+            className={botonPrincipal}
           >
+            <img src={iconoFlechaDer} alt="" width={20} height={20} />
             {actual === 'pin' ? 'Seguir' : enviando ? 'Guardando…' : 'Guardar y entrar'}
           </button>
+
+          {actual === 'pin' && (
+            <p className="text-[13px] text-secundario">Después te lo pedimos otra vez para confirmarlo.</p>
+          )}
         </form>
       )}
 
-      <div className="mt-4 text-center">
+      <div className="mt-2 flex justify-center">
         <button type="button" onClick={() => cerrar().catch(() => undefined)} className={enlace}>
           Cerrar sesión
         </button>
       </div>
+    </>
+  )
+
+  // P-31: la tablet de Caja, con los dos paneles. Cocina y el mozo siguen con P-30.
+  if (esCaja) {
+    return (
+      <MarcoDosPaneles
+        variante="caja"
+        titulo="Antes de abrir la caja, elegí tu PIN."
+        bajada="El que te dio el Admin era provisorio. El tuyo identifica quién aprueba pedidos y cierra cuentas."
+        pie={sesion.local ? `Tablet del mostrador · ${sesion.local.nombre}` : undefined}
+      >
+        {cuerpo}
+      </MarcoDosPaneles>
+    )
+  }
+
+  return (
+    <MarcoAcceso bajada={bajada} ilustracion={!(enPin && textoDelAviso)}>
+      {cuerpo}
     </MarcoAcceso>
   )
 }
