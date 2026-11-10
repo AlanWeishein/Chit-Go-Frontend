@@ -1,5 +1,6 @@
 // El marco de todas las pantallas de Caja (tablet, 1024 × 768): el menú lateral de P-08 y, a la derecha, la
 // pantalla de cada ruta. El padding de la derecha lo pone cada pantalla.
+// También trae la cola de aprobación: la usan el contador del menú y la pantalla de Aprobación.
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useSesion } from '../../../compartido/sesion/SesionContext'
@@ -9,6 +10,8 @@ import iconoAprobados from '../../../compartido/ui/iconos/chef-18.svg'
 import iconoSalir from '../../../compartido/ui/iconos/logout.svg'
 import iconoCuentas from '../../../compartido/ui/iconos/receipt.svg'
 import iconoUsuarios from '../../../compartido/ui/iconos/users.svg'
+import type { DatosCaja } from '../datosCaja'
+import { useColaDeAprobacion } from '../useColaDeAprobacion'
 
 const secciones = [
   { a: '/caja/pedidos', texto: 'Aprobación', icono: iconoAprobacion },
@@ -35,8 +38,12 @@ function IconoDeSeccion({ src, activo }: { src: string; activo: boolean }) {
 export default function MarcoCaja() {
   const { sesion, cerrar } = useSesion()
   const [saliendo, setSaliendo] = useState(false)
+  const cola = useColaDeAprobacion(sesion?.local?.id)
 
   if (!sesion) return null
+
+  // Si la cola no se pudo traer, no se muestra un número viejo.
+  const contadores: Record<string, number> = { '/caja/pedidos': cola.error ? 0 : cola.pedidos.length }
 
   // Al cerrar, la sesión queda en null y RutaProtegida manda sola a la lista de nombres de Caja.
   async function salir() {
@@ -69,6 +76,12 @@ export default function MarcoCaja() {
                 <>
                   <IconoDeSeccion src={s.icono} activo={isActive} />
                   {s.texto}
+                  {contadores[s.a] > 0 && (
+                    <span className="ml-auto rounded-full bg-primario px-[7px] py-0.5 text-[11px] leading-[normal] font-semibold tracking-[0.66px] text-texto-boton">
+                      {contadores[s.a]}
+                      <span className="sr-only"> {contadores[s.a] === 1 ? 'pendiente' : 'pendientes'}</span>
+                    </span>
+                  )}
                 </>
               )}
             </NavLink>
@@ -100,7 +113,7 @@ export default function MarcoCaja() {
       </aside>
 
       <main className="min-w-0 flex-1 overflow-y-auto">
-        <Outlet />
+        <Outlet context={{ cola } satisfies DatosCaja} />
       </main>
     </div>
   )

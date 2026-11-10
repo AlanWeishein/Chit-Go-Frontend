@@ -21,6 +21,7 @@ import MiTurno from './roles/mozo/paginas/MiTurno'
 // Rutas de Caja
 import MarcoCaja from './roles/caja/componentes/MarcoCaja'
 import { CierreCuentaPage } from './roles/caja/paginas/CierreCuentaPage'
+import ColaAprobacion from './roles/caja/paginas/ColaAprobacion'
 
 export default function App() {
   return (
@@ -64,7 +65,7 @@ export default function App() {
         }
       >
         <Route index element={<Navigate to="pedidos" replace />} />
-        <Route path="pedidos" element={<Pendiente titulo="Cola de aprobación" />} />
+        <Route path="pedidos" element={<ColaAprobacion />} />
         {/* Cuentas por cobrar y cierre (P-09, HU-10) */}
         <Route path="cuentas" element={<CierreCuentaPage />} />
         <Route path="disponibilidad" element={<Pendiente titulo="Disponibilidad rápida" />} />
