@@ -19,6 +19,7 @@ import Avisos from './roles/mozo/paginas/Avisos'
 import MiTurno from './roles/mozo/paginas/MiTurno'
 
 // Rutas de Caja
+import MarcoCaja from './roles/caja/componentes/MarcoCaja'
 import { CierreCuentaPage } from './roles/caja/paginas/CierreCuentaPage'
 
 export default function App() {
@@ -51,20 +52,26 @@ export default function App() {
         <Route path="turno" element={<MiTurno />} />
       </Route>
 
-      {/* Caja: cuentas por cobrar y cierre (P-09, HU-10) */}
+      {/* Caja: el marco con el menú lateral y sus pantallas */}
       <Route
-        path="/caja/cuentas"
+        path="/caja"
         element={
           <RutaProtegida roles={['CAJA']}>
             <ConCredencialPropia>
-              <CierreCuentaPage />
+              <MarcoCaja />
             </ConCredencialPropia>
           </RutaProtegida>
         }
-      />
+      >
+        <Route index element={<Navigate to="pedidos" replace />} />
+        <Route path="pedidos" element={<Pendiente titulo="Cola de aprobación" />} />
+        {/* Cuentas por cobrar y cierre (P-09, HU-10) */}
+        <Route path="cuentas" element={<CierreCuentaPage />} />
+        <Route path="disponibilidad" element={<Pendiente titulo="Disponibilidad rápida" />} />
+        <Route path="aprobados" element={<Pendiente titulo="Pedidos aprobados" />} />
+      </Route>
 
       {/* Hasta que cada rol tenga sus pantallas: quién entró y "Cerrar sesión" */}
-      <Route path="/caja/*" element={<RutaProtegida roles={['CAJA']}><PantallaProvisoria /></RutaProtegida>} />
       <Route path="/cocina/*" element={<RutaProtegida roles={['COCINA']}><PantallaProvisoria /></RutaProtegida>} />
       <Route
         path="/admin/*"
