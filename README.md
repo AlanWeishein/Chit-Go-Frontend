@@ -45,11 +45,12 @@ src/
 ├── roles/        una carpeta por rol, cada una con paginas/ y componentes/
 │   ├── cliente/      la carta, el carrito, el pedido y el seguimiento (se entra por /mesa/{token})
 │   ├── acceso/       el login de todo el personal y el primer ingreso
-│   └── caja, cocina, mozo, admin, plataforma   todavía vacías
+│   ├── caja/         el marco con el menú, la cola de aprobación (P-08) y Cuentas por cobrar (P-09)
+│   └── cocina, mozo, admin, plataforma   todavía vacías
 ├── compartido/
 │   ├── api/          http.ts (el único que llama a fetch), auth.ts (login y sesión) y cliente.ts (mesa, carta, pedido, estado de la cuenta y cancelar)
 │   ├── sesion/       quién está logueado, las rutas protegidas y el token de la mesa del celular
-│   ├── ws/           la conexión STOMP a /ws (la usa el seguimiento del cliente, P-03)
+│   ├── ws/           la conexión STOMP a /ws (la usan el seguimiento del cliente, P-03, y la cola de Caja, P-08)
 │   ├── tipos/        los tipos del contrato
 │   ├── ui/           piezas que usan varios roles, y iconos/ con los SVG exportados del Mockup
 │   ├── utils/        funciones chicas
@@ -68,7 +69,10 @@ Rutas (`src/App.tsx`):
 - `/staff/{tokenStaff}`: el login con PIN de Mozo, Caja y Cocina. `/staff/{tokenStaff}/elegir-pin` es el primer ingreso.
 - `/staff/{tokenStaff}/caja`: la entrada de la tablet de Caja (dos paneles). Siempre muestra la lista de nombres, sin mirar la cookie de dispositivo. `?cerrada=inactividad` muestra el aviso de sesión cortada, que hoy nada dispara.
 - `/admin/login`: el login con email del Admin y del Gerente/Dueño. `/admin/cambiar-contrasena` es su primer ingreso.
-- `/mozo`, `/caja`, `/cocina` y `/admin`: una pantalla provisoria que muestra quién entró y tiene "Cerrar sesión".
+- `/caja`: el marco de Caja, con su menú. `/caja/pedidos` es la cola de aprobación (P-08): aprobar, rechazar y la
+  alerta de los 3 minutos, con el filtro "Con alerta". `/caja/cuentas` es Cuentas por cobrar (P-09).
+  `/caja/disponibilidad` y `/caja/aprobados` todavía dicen "En construcción".
+- `/mozo`, `/cocina` y `/admin`: una pantalla provisoria que muestra quién entró y tiene "Cerrar sesión".
 - `/plataforma`: "En construcción".
 
 Las pantallas nunca llaman a `fetch` directo: pasan por `compartido/api`.
@@ -136,8 +140,8 @@ Y dos del back para probar el cliente:
 
 - "Llamar al mozo" da `404`, porque ese endpoint es del Sprint 2. La pantalla muestra el error.
 - En "Mi cuenta", un pedido recién mandado queda "En espera". Para verlo pasar a aprobado, en preparación y
-  listo hay que aprobarlo como Caja (`/caja/pedidos/{id}/aprobar`) y moverlo como Cocina
-  (`/cocina/pedidos/{id}/en-preparacion` y `/listo`) con curl, porque la pantalla de Caja todavía no anda. Para
+  listo hay que aprobarlo en la cola de Caja (`/caja/pedidos`) y moverlo como Cocina
+  (`/cocina/pedidos/{id}/en-preparacion` y `/listo`) con curl, porque la pantalla de Cocina todavía no anda. Para
   entrar: `GET /api/v1/auth/sesion` deja la cookie `XSRF-TOKEN`, y después `POST /api/v1/auth/pin` con
   `{tokenStaff, usuarioId, pin}`. Los `usuarioId` salen de `GET /api/v1/public/staff/{tokenStaff}` y los PIN, de
   la tabla del README del back. Todos los `POST` llevan el header `X-XSRF-TOKEN` con el valor de esa cookie.
@@ -174,7 +178,7 @@ sistema y puede quedar por debajo de 3:1.
 
 - La PWA: manifest, íconos y un service worker liviano que solo cachea archivos estáticos (sin modo offline
   para pedidos). Hoy `public/` está vacía.
-- Las pantallas de Mozo, Caja, Cocina, Admin y Plataforma.
+- Las pantallas de Mozo, Cocina, Admin y Plataforma, y en Caja, Disponibilidad rápida y Pedidos aprobados.
 - Probar desde el celular con la IP de la compu. Vite escucha solo en `localhost`, y por http con IP no existe
   `crypto.randomUUID()`: el carrito arma la clave del pedido con `crypto.getRandomValues` en su lugar, pero eso
   todavía no se probó en un celular.
