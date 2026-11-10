@@ -23,6 +23,9 @@ import MarcoCaja from './roles/caja/componentes/MarcoCaja'
 import { CierreCuentaPage } from './roles/caja/paginas/CierreCuentaPage'
 import ColaAprobacion from './roles/caja/paginas/ColaAprobacion'
 
+// Rutas de Cocina
+import ColaCocina from './roles/cocina/paginas/ColaCocina'
+
 export default function App() {
   return (
     <Routes>
@@ -72,8 +75,19 @@ export default function App() {
         <Route path="aprobados" element={<Pendiente titulo="Pedidos aprobados" />} />
       </Route>
 
+      {/* Cocina: el KDS (P-11) */}
+      <Route
+        path="/cocina/*"
+        element={
+          <RutaProtegida roles={['COCINA']}>
+            <ConCredencialPropia>
+              <ColaCocina />
+            </ConCredencialPropia>
+          </RutaProtegida>
+        }
+      />
+
       {/* Hasta que cada rol tenga sus pantallas: quién entró y "Cerrar sesión" */}
-      <Route path="/cocina/*" element={<RutaProtegida roles={['COCINA']}><PantallaProvisoria /></RutaProtegida>} />
       <Route
         path="/admin/*"
         element={<RutaProtegida roles={['ADMIN', 'GERENTE_DUENO']}><PantallaProvisoria /></RutaProtegida>}
