@@ -1,8 +1,8 @@
 import React from 'react';
-import { TicketResponse } from '../../../compartido/tipos/caja';
+import type { Ticket } from '../../../compartido/api/caja';
 
 interface Props {
-  ticket: TicketResponse;
+  ticket: Ticket;
   onCerrar?: () => void;
 }
 

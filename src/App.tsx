@@ -18,6 +18,9 @@ import DetalleMesa from './roles/mozo/paginas/DetalleMesa'
 import Avisos from './roles/mozo/paginas/Avisos'
 import MiTurno from './roles/mozo/paginas/MiTurno'
 
+// Rutas de Caja
+import { CierreCuentaPage } from './roles/caja/paginas/CierreCuentaPage'
+
 export default function App() {
   return (
     <Routes>
@@ -47,6 +50,18 @@ export default function App() {
         <Route path="avisos" element={<Avisos />} />
         <Route path="turno" element={<MiTurno />} />
       </Route>
+
+      {/* Caja: cuentas por cobrar y cierre (P-09, HU-10) */}
+      <Route
+        path="/caja/cuentas"
+        element={
+          <RutaProtegida roles={['CAJA']}>
+            <ConCredencialPropia>
+              <CierreCuentaPage />
+            </ConCredencialPropia>
+          </RutaProtegida>
+        }
+      />
 
       {/* Hasta que cada rol tenga sus pantallas: quién entró y "Cerrar sesión" */}
       <Route path="/caja/*" element={<RutaProtegida roles={['CAJA']}><PantallaProvisoria /></RutaProtegida>} />

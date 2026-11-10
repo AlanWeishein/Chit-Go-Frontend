@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { CuentaPorCobrar, TicketResponse, PedidoSinServirDetalle } from '../../../compartido/tipos/caja';
-import { obtenerCuentasPorCobrar, cerrarCuentaCaja } from '../../../compartido/api/caja';
+import {
+  listarCuentasPorCobrar,
+  cerrarCuenta,
+  type CuentaPorCobrar,
+  type Ticket,
+  type PedidoSinServir,
+  type MotivoDeConfirmacion,
+  type ConfirmacionDeCierre,
+} from '../../../compartido/api/caja';
+import { detalleDe, statusDe, textoDelError } from '../../../compartido/api/errores';
 import { VistaTicket } from '../componentes/VistaTicket';
 
 export const CierreCuentaPage: React.FC = () => {
@@ -10,22 +18,22 @@ export const CierreCuentaPage: React.FC = () => {
 
   // Estado para el modal de confirmación en 2 pasos (409 CONFIRMAR_CIERRE)
   const [cuentaAConfirmar, setCuentaAConfirmar] = useState<CuentaPorCobrar | null>(null);
-  const [pedidosAfectados, setPedidosAfectados] = useState<PedidoSinServirDetalle[]>([]);
-  const [motivosConfirmacion, setMotivosConfirmacion] = useState<string[]>([]);
+  const [pedidosAfectados, setPedidosAfectados] = useState<PedidoSinServir[]>([]);
+  const [motivosConfirmacion, setMotivosConfirmacion] = useState<MotivoDeConfirmacion[]>([]);
   const [procesandoCierre, setProcesandoCierre] = useState<boolean>(false);
 
   // Estado para mostrar el Ticket emitido
-  const [ticketEmitido, setTicketEmitido] = useState<TicketResponse | null>(null);
+  const [ticketEmitido, setTicketEmitido] = useState<Ticket | null>(null);
 
   // Cargar cuentas por cobrar al montar la pantalla
   const cargarCuentas = async () => {
     setCargando(true);
     setErrorText(null);
     try {
-      const data = await obtenerCuentasPorCobrar();
+      const data = await listarCuentasPorCobrar();
       setCuentas(data);
-    } catch (err: any) {
-      setErrorText(err?.detail || 'Error al cargar las cuentas por cobrar.');
+    } catch (err) {
+      setErrorText(textoDelError(err, 'Error al cargar las cuentas por cobrar.'));
     } finally {
       setCargando(false);
     }
@@ -41,18 +49,21 @@ export const CierreCuentaPage: React.FC = () => {
     setErrorText(null);
 
     try {
-      const ticket = await cerrarCuentaCaja(cuenta.id);
+      const ticket = await cerrarCuenta(cuenta.id);
       // Cierre directo exitoso
       setTicketEmitido(ticket);
       cargarCuentas();
-    } catch (err: any) {
-      // Manejo del Cierre en 2 Pasos (Error 409 CONFIRMAR_CIERRE)
-      if (err?.status === 409 && err?.codigo === 'CONFIRMAR_CIERRE') {
+    } catch (err) {
+      // Manejo del Cierre en 2 Pasos (Error 409 CONFIRMAR_CIERRE).
+      // El cuerpo del 409 viene en err.detalle (ApiError), no en err directo.
+      const detalle = detalleDe(err);
+      if (statusDe(err) === 409 && detalle?.codigo === 'CONFIRMAR_CIERRE') {
+        const confirmacion = detalle as unknown as ConfirmacionDeCierre;
         setCuentaAConfirmar(cuenta);
-        setMotivosConfirmacion(err?.motivos || []);
-        setPedidosAfectados(err?.pedidosSinServir || []);
+        setMotivosConfirmacion(confirmacion.motivos ?? []);
+        setPedidosAfectados(confirmacion.pedidosSinServir ?? []);
       } else {
-        alert(err?.detail || 'No se pudo cerrar la cuenta.');
+        alert(textoDelError(err, 'No se pudo cerrar la cuenta.'));
       }
     } finally {
       setProcesandoCierre(false);
@@ -67,18 +78,15 @@ export const CierreCuentaPage: React.FC = () => {
     const idsACancelar = pedidosAfectados.map((p) => p.id);
 
     try {
-      const ticket = await cerrarCuentaCaja(cuentaAConfirmar.id, {
-        confirmar: true,
-        pedidosACancelar: idsACancelar,
-      });
+      const ticket = await cerrarCuenta(cuentaAConfirmar.id, { pedidosACancelar: idsACancelar });
 
       setTicketEmitido(ticket);
       setCuentaAConfirmar(null);
       setPedidosAfectados([]);
       setMotivosConfirmacion([]);
       cargarCuentas();
-    } catch (err: any) {
-      alert(err?.detail || 'Error al confirmar el cierre de la cuenta.');
+    } catch (err) {
+      alert(textoDelError(err, 'Error al confirmar el cierre de la cuenta.'));
     } finally {
       setProcesandoCierre(false);
     }
