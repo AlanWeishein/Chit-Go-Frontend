@@ -1,14 +1,17 @@
 import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { cancelarPedido, traducirError, type EstadoDeSesion } from '../../../compartido/api/cliente'
+import { cancelarPedido, solicitarCuenta, traducirError, type EstadoDeSesion } from '../../../compartido/api/cliente'
 import iconoAviso from '../../../compartido/ui/iconos/alert.svg'
 import iconoCheck from '../../../compartido/ui/iconos/check-14.svg'
 import iconoCheck20 from '../../../compartido/ui/iconos/check-20.svg'
+import iconoCheck22 from '../../../compartido/ui/iconos/check-22.svg'
 import iconoCheckBlanco from '../../../compartido/ui/iconos/check-blanco.svg'
-import iconoReloj from '../../../compartido/ui/iconos/clock.svg'
 import iconoMas from '../../../compartido/ui/iconos/plus.svg'
+import iconoCuentaBlanco from '../../../compartido/ui/iconos/receipt-blanco.svg'
+import iconoCuenta14 from '../../../compartido/ui/iconos/receipt-14.svg'
 import BarraDeAbajo from '../componentes/BarraDeAbajo'
 import HojaCancelar from '../componentes/HojaCancelar'
+import HojaPedirCuenta from '../componentes/HojaPedirCuenta'
 import PantallaDeEntrada, { botonPrincipal, PROBA_DE_NUEVO } from '../componentes/PantallaDeEntrada'
 import TarjetaPedido, { EtiquetaEstado } from '../componentes/TarjetaPedido'
 import { cantidadDePedidos, precio } from '../formato'
@@ -18,19 +21,25 @@ import { useSeguimiento } from '../useSeguimiento'
 // El estado con el que P-02 llega acá después de mandar un pedido.
 export type EstadoVuelta = { pedidoEnviado: true }
 
-// ya-aprobado es P-03c. error, cualquier otra cosa que salió mal al cancelar.
-type Aviso = { tipo: 'ya-aprobado' } | { tipo: 'error'; texto: string }
+// ya-aprobado es P-03c y sin-servir es P-03f. error, cualquier otra cosa que salió mal al cancelar o al pedir la cuenta.
+type Aviso = { tipo: 'ya-aprobado' } | { tipo: 'sin-servir' } | { tipo: 'error'; texto: string }
 
 const CUENTA: Record<EstadoDeSesion['cuentaEstado'], { texto: string; icono: string }> = {
   ABIERTA: { texto: 'Cuenta abierta', icono: iconoCheck },
-  SOLICITADA: { texto: 'Cuenta pedida', icono: iconoReloj },
+  SOLICITADA: { texto: 'Cuenta pedida', icono: iconoCuenta14 },
   CERRADA: { texto: 'Cuenta cerrada', icono: iconoCheck },
 }
 
-const cuenta = (e: EstadoDeSesion['pedidos'][number]) => e.estado !== 'RECHAZADO' && e.estado !== 'CANCELADO'
+type PedidoDeLaCuenta = EstadoDeSesion['pedidos'][number]
 
-// P-03 (seguimiento), P-03b (confirmar cancelar) y P-03c (ya fue aprobado). Solo para el iniciador: en modo
-// lectura vuelve a la carta, como P-02. Pedir la cuenta (P-03d a P-03f) lo suma HU-03 en el Sprint 2.
+const cuenta = (e: PedidoDeLaCuenta) => e.estado !== 'RECHAZADO' && e.estado !== 'CANCELADO'
+
+// Lo que el back cuenta como "sin servir" al pedir la cuenta (Pedido.estaSinServir): todo lo que no está servido,
+// rechazado ni cancelado. Si el back cambia esa regla, hay que cambiarla acá también.
+const sinServir = (e: PedidoDeLaCuenta) => cuenta(e) && e.estado !== 'SERVIDO'
+
+// P-03 (seguimiento), P-03b (confirmar cancelar), P-03c (ya fue aprobado), P-03d (confirmar pedir la cuenta), P-03e
+// (cuenta pedida) y P-03f (pedidos sin servir). Solo para el iniciador: en modo lectura vuelve a la carta, como P-02.
 export default function PaginaCuentaCliente() {
   const { token = '' } = useParams<{ token: string }>()
   const { entrada, reintentar } = useEntradaMesa(token)
@@ -38,6 +47,8 @@ export default function PaginaCuentaCliente() {
   const { estado, fallo, conexion, actualizar } = useSeguimiento(sesion?.esIniciador ? sesion.tokenSesion : null)
   const [aCancelar, setACancelar] = useState<{ id: number; numero: number } | null>(null)
   const [cancelando, setCancelando] = useState(false)
+  const [aPedirCuenta, setAPedirCuenta] = useState(false)
+  const [pidiendoCuenta, setPidiendoCuenta] = useState(false)
   const [aviso, setAviso] = useState<Aviso | null>(null)
 
   // Al llegar desde P-02 con el pedido enviado. Se borra del historial, así al recargar no vuelve a aparecer.
@@ -50,10 +61,11 @@ export default function PaginaCuentaCliente() {
     if (pedidoEnviado) navigate(location.pathname, { replace: true, state: null })
   }, [pedidoEnviado, navigate, location.pathname])
 
-  // El router no vuelve arriba al cambiar de pantalla, y los avisos van arriba.
+  // El router no vuelve arriba al cambiar de pantalla, y los avisos van arriba (también el de "Cuenta pedida").
+  const cuentaEstado = estado?.cuentaEstado
   useEffect(() => {
     window.scrollTo({ top: 0 })
-  }, [aviso])
+  }, [aviso, cuentaEstado])
 
   const rutaCarta = `/mesa/${encodeURIComponent(token)}`
 
@@ -91,6 +103,46 @@ export default function PaginaCuentaCliente() {
       setACancelar(null)
     }
   }
+
+  // Antes de abrir P-03d se mira el estado que ya tiene la pantalla: con pedidos sin servir sale P-03f y no se
+  // llama al back. El estado puede estar viejo (el back avisa por WebSocket solo los cambios de los pedidos), y
+  // por eso un 409 del POST vuelve a pedirlo.
+  function tocarPedirCuenta() {
+    setPedidoEnviado(false)
+    if (estado?.pedidos.some(sinServir)) setAviso({ tipo: 'sin-servir' })
+    else {
+      setAviso(null)
+      setAPedirCuenta(true)
+    }
+  }
+
+  async function confirmarPedirCuenta() {
+    setPidiendoCuenta(true)
+    setAviso(null)
+    try {
+      await solicitarCuenta(sesionLista.tokenSesion)
+      await actualizar()
+    } catch (err) {
+      const f = traducirError(err)
+      if (f.motivo === 'cuenta-en-conflicto') {
+        // El back no manda un codigo y el texto no se compara: se mira el estado nuevo. Si hay pedidos sin servir,
+        // P-03f. Si otra pestaña ya la pidió, queda P-03e sin error. Si no, el detail del back.
+        const ahora = await actualizar()
+        if (ahora === null) setAviso({ tipo: 'error', texto: `No pudimos pedir la cuenta. ${PROBA_DE_NUEVO}` })
+        else if (ahora.pedidos.some(sinServir)) setAviso({ tipo: 'sin-servir' })
+        else if (ahora.cuentaEstado !== 'SOLICITADA') {
+          setAviso({ tipo: 'error', texto: f.detalle ?? 'No se pudo pedir la cuenta.' })
+        }
+      } else {
+        setAviso({ tipo: 'error', texto: `No pudimos pedir la cuenta. ${PROBA_DE_NUEVO}` })
+      }
+    } finally {
+      setPidiendoCuenta(false)
+      setAPedirCuenta(false)
+    }
+  }
+
+  const haySinServir = estado?.pedidos.some(sinServir) ?? false
 
   let contenido: ReactNode
   if (estado === null) {
@@ -181,6 +233,18 @@ export default function PaginaCuentaCliente() {
               </div>
             </div>
           )}
+          {aviso?.tipo === 'sin-servir' && haySinServir && (
+            <div
+              role="alert"
+              className="flex items-start gap-3 rounded-[14px] border-[1.5px] border-primario bg-tarjeta p-3.5 text-texto"
+            >
+              <img src={iconoAviso} alt="" width={20} height={20} className="shrink-0" />
+              <div className="flex flex-col gap-1">
+                <p className="text-[15px] font-semibold">Todavía hay pedidos sin servir.</p>
+                <p className="text-[13px] leading-[1.4]">Vas a poder pedir la cuenta cuando lleguen todos.</p>
+              </div>
+            </div>
+          )}
           {aviso?.tipo === 'error' && (
             <p
               role="alert"
@@ -189,6 +253,18 @@ export default function PaginaCuentaCliente() {
               <img src={iconoAviso} alt="" width={20} height={20} className="shrink-0" />
               {aviso.texto}
             </p>
+          )}
+
+          {estado?.cuentaEstado === 'SOLICITADA' && (
+            <div role="status" className="flex items-start gap-3 rounded-[14px] bg-linea p-3.5 text-texto">
+              <img src={iconoCheck20} alt="" width={20} height={20} className="shrink-0" />
+              <div className="flex flex-col gap-1">
+                <p className="text-[15px] font-semibold">Cuenta pedida</p>
+                <p className="text-[13px] leading-[1.4]">
+                  Le avisamos al mozo y Caja ya la ve para cerrarla. Podés seguir pidiendo hasta que se emita el ticket.
+                </p>
+              </div>
+            </div>
           )}
 
           {estado !== null && fallo !== null && (
@@ -210,8 +286,46 @@ export default function PaginaCuentaCliente() {
         />
       )}
 
-      {/* "Pedir la cuenta" (HU-03, Sprint 2) va como acción de la barra, a la derecha. */}
-      <BarraDeAbajo tokenSesion={sesionLista.tokenSesion} />
+      {aPedirCuenta && estado !== null && (
+        <HojaPedirCuenta
+          total={estado.total}
+          pidiendo={pidiendoCuenta}
+          onConfirmar={() => void confirmarPedirCuenta()}
+          onVolver={() => setAPedirCuenta(false)}
+        />
+      )}
+
+      {/* La acción de la derecha va como JSX con &&, no como componente: BarraDeAbajo cuenta lo que se dibuja, y un
+          componente que devuelve null contaría como acción y dejaría "Llamar al mozo" de 108 px con el lado vacío.
+          Abierta, con algún pedido que sume: "Pedir la cuenta". Pedida: P-03e, sin poder tocarse. Cerrada, o sin
+          nada que cobrar: nada, y "Llamar al mozo" va a todo el ancho. */}
+      <BarraDeAbajo tokenSesion={sesionLista.tokenSesion}>
+        {estado?.cuentaEstado === 'ABIERTA' && estado.pedidos.some(cuenta) && (
+          <button
+            type="button"
+            onClick={tocarPedirCuenta}
+            className="flex h-[60px] min-w-0 flex-1 items-center justify-center gap-2 rounded-[14px] bg-primario px-[18px]"
+          >
+            <img src={iconoCuentaBlanco} alt="" width={20} height={20} />
+            <span className="flex flex-col whitespace-nowrap text-left">
+              <span className="text-[15px] font-semibold text-texto-boton">Pedir la cuenta</span>
+              <span className="text-[13px] text-linea">Total {precio(estado.total)}</span>
+            </span>
+          </button>
+        )}
+        {estado?.cuentaEstado === 'SOLICITADA' && (
+          <div
+            role="status"
+            className="flex h-[60px] min-w-0 flex-1 items-center justify-center gap-2 rounded-[14px] bg-linea px-[18px] text-texto"
+          >
+            <img src={iconoCheck22} alt="" width={22} height={22} />
+            <span className="flex flex-col whitespace-nowrap">
+              <span className="text-[15px] font-semibold">Cuenta pedida</span>
+              <span className="text-[13px]">Total {precio(estado.total)}</span>
+            </span>
+          </div>
+        )}
+      </BarraDeAbajo>
     </div>
   )
 }

@@ -48,7 +48,7 @@ src/
 │   ├── caja/         el marco con el menú, la cola de aprobación (P-08) y Cuentas por cobrar (P-09)
 │   └── cocina, mozo, admin, plataforma   todavía vacías
 ├── compartido/
-│   ├── api/          http.ts (el único que llama a fetch), auth.ts (login y sesión) y cliente.ts (mesa, carta, pedido, estado de la cuenta y cancelar)
+│   ├── api/          http.ts (el único que llama a fetch), auth.ts (login y sesión) y cliente.ts (mesa, carta, pedido, estado de la cuenta, cancelar y pedir la cuenta)
 │   ├── sesion/       quién está logueado, las rutas protegidas y el token de la mesa del celular
 │   ├── ws/           la conexión STOMP a /ws (la usan el seguimiento del cliente, P-03, y la cola de Caja, P-08)
 │   ├── tipos/        los tipos del contrato
@@ -62,8 +62,8 @@ Rutas (`src/App.tsx`):
 
 - `/mesa/{tokenQR}`: el cliente. Es la carta (P-01).
 - `/mesa/{tokenQR}/pedido`: el carrito (P-02). Solo para el iniciador.
-- `/mesa/{tokenQR}/cuenta`: "Mi cuenta" (P-03), con el seguimiento de los pedidos y cancelar uno que está en
-  espera. Solo para el iniciador.
+- `/mesa/{tokenQR}/cuenta`: "Mi cuenta" (P-03), con el seguimiento de los pedidos, cancelar uno que está en
+  espera y pedir la cuenta (P-03d, P-03e y P-03f). Solo para el iniciador.
 
   En modo lectura (un celular que no abrió la cuenta), `/pedido` y `/cuenta` vuelven a la carta.
 - `/staff/{tokenStaff}`: el login con PIN de Mozo, Caja y Cocina. `/staff/{tokenStaff}/elegir-pin` es el primer ingreso.
@@ -138,13 +138,27 @@ Dos cosas de la seed para tener en cuenta:
 
 Y dos del back para probar el cliente:
 
-- "Llamar al mozo" da `404`, porque ese endpoint es del Sprint 2. La pantalla muestra el error.
-- En "Mi cuenta", un pedido recién mandado queda "En espera". Para verlo pasar a aprobado, en preparación y
-  listo hay que aprobarlo en la cola de Caja (`/caja/pedidos`) y moverlo como Cocina
-  (`/cocina/pedidos/{id}/en-preparacion` y `/listo`) con curl, porque la pantalla de Cocina todavía no anda. Para
-  entrar: `GET /api/v1/auth/sesion` deja la cookie `XSRF-TOKEN`, y después `POST /api/v1/auth/pin` con
+- En "Mi cuenta", un pedido recién mandado queda "En espera". Para verlo pasar a aprobado, en preparación,
+  listo y servido hay que aprobarlo como Carla, cocinarlo como Hugo y servirlo como Juan, con sus pantallas
+  (`/caja/pedidos`, `/cocina` y `/mozo`) o con curl. Para entrar con curl, `GET /api/v1/auth/sesion` deja la cookie `XSRF-TOKEN`, y después `POST /api/v1/auth/pin` con
   `{tokenStaff, usuarioId, pin}`. Los `usuarioId` salen de `GET /api/v1/public/staff/{tokenStaff}` y los PIN, de
-  la tabla del README del back. Todos los `POST` llevan el header `X-XSRF-TOKEN` con el valor de esa cookie.
+  la tabla del README del back. Todos los `POST` llevan el header `X-XSRF-TOKEN` con el valor de esa cookie. Después:
+  `POST /api/v1/caja/pedidos/{id}/aprobar`, `POST /api/v1/cocina/pedidos/{id}/en-preparacion` y `/listo`, y
+  `POST /api/v1/mozo/pedidos/{id}/servido`. Juan, además, necesita su cookie de dispositivo: antes de su PIN,
+  `POST /api/v1/auth/mozo/login` con `{tokenStaff, nombreUsuario: "juan", password}`.
+
+Para pedir la cuenta (P-03d, P-03e y P-03f), en la mesa 1 como iniciador:
+
+1. Mandá un pedido y entrá a "Mi cuenta". Con el pedido sin servir, "Pedir la cuenta" muestra "Todavía hay pedidos
+   sin servir." y no llama al back.
+2. Movelo hasta "Servido". El aviso se va solo.
+3. "Pedir la cuenta" abre la confirmación con el total. "Volver" la cierra sin pedir nada. "Pedir la cuenta" da
+   `204`, y "Mi cuenta" pasa a "Cuenta pedida". En la base, `cuenta.estado` queda `SOLICITADA` con `solicitada_en`,
+   y hay un `aviso` de tipo `CUENTA_SOLICITADA`. Juan lo ve en `GET /api/v1/mozo/avisos?pendientes=true` y Carla ve
+   la cuenta como solicitada en `/caja/cuentas`.
+4. Con la cuenta pedida, un pedido nuevo desde "Agregar más platos" la vuelve a abierta y vuelve el botón.
+5. Cuando Caja cierra la cuenta, "Mi cuenta" no se entera sola: el back no avisa al cliente de los cambios de la
+   cuenta, solo de los de los pedidos. Al recargar, el celular entra a una cuenta nueva de la mesa.
 
 ## Diseño
 
