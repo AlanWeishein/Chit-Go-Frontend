@@ -22,6 +22,7 @@ import MiTurno from './roles/mozo/paginas/MiTurno'
 import MarcoCaja from './roles/caja/componentes/MarcoCaja'
 import { CierreCuentaPage } from './roles/caja/paginas/CierreCuentaPage'
 import ColaAprobacion from './roles/caja/paginas/ColaAprobacion'
+import DisponibilidadRapida from './roles/caja/paginas/DisponibilidadRapida'
 
 // Rutas de Cocina
 import ColaCocina from './roles/cocina/paginas/ColaCocina'
@@ -71,7 +72,8 @@ export default function App() {
         <Route path="pedidos" element={<ColaAprobacion />} />
         {/* Cuentas por cobrar y cierre (P-09, HU-10) */}
         <Route path="cuentas" element={<CierreCuentaPage />} />
-        <Route path="disponibilidad" element={<Pendiente titulo="Disponibilidad rápida" />} />
+        {/* Disponibilidad rápida (P-10, HU-09) */}
+        <Route path="disponibilidad" element={<DisponibilidadRapida />} />
         <Route path="aprobados" element={<Pendiente titulo="Pedidos aprobados" />} />
       </Route>
 
@@ -82,6 +84,20 @@ export default function App() {
           <RutaProtegida roles={['COCINA']}>
             <ConCredencialPropia>
               <ColaCocina />
+            </ConCredencialPropia>
+          </RutaProtegida>
+        }
+      />
+
+      {/* Disponibilidad rápida del Admin (P-10c): sola, antes de /admin/*. El marco del Admin es de la ST-18. */}
+      <Route
+        path="/admin/disponibilidad"
+        element={
+          <RutaProtegida roles={['ADMIN']}>
+            <ConCredencialPropia>
+              <div className="min-h-dvh bg-fondo">
+                <DisponibilidadRapida />
+              </div>
             </ConCredencialPropia>
           </RutaProtegida>
         }
