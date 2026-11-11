@@ -26,3 +26,10 @@
 body {
   margin: 0;
 }
+
+/* Al imprimir: A4 vertical y sin margen de hoja, para que Chrome no ponga la fecha, el título ni la URL arriba y abajo.
+   El margen lo pone el ticket (ver VistaTicket y CierreCuentaPage). Con una térmica, cambiar el size al ancho del rollo. */
+@page {
+  size: A4 portrait;
+  margin: 0;
+}

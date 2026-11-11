@@ -17,7 +17,8 @@ function fechaYHora(iso: string): string {
 }
 
 // El ticket no fiscal como papel angosto, como la "Vista previa del ticket" de P-09 (nodo 2009:3269).
-// Los estilos de impresión los suma Victoria: acá solo se ocultan los botones y el borde al imprimir.
+// Al imprimir sale solo este papel (el marco y la página de Caja se esconden con print:, el @page está en index.css):
+// sin borde ni fondo, con todo el texto en `texto` en vez del gris, y sin partirse en dos hojas.
 export const VistaTicket: React.FC<Props> = ({ ticket, onCerrar }) => {
   const handleImprimir = () => {
     window.print();
@@ -25,14 +26,14 @@ export const VistaTicket: React.FC<Props> = ({ ticket, onCerrar }) => {
 
   return (
     <div className="flex w-full flex-col gap-2">
-      <div className="flex w-full flex-col items-center gap-1 rounded-md border border-linea bg-tarjeta p-3 leading-[normal] text-texto tabular-nums print:border-none">
+      <div className="flex w-full flex-col items-center gap-1 rounded-md border border-linea bg-tarjeta p-3 leading-[normal] text-texto tabular-nums print:break-inside-avoid print:border-none print:bg-transparent">
         <p className="titulo text-[25px] leading-[normal]">{ticket.letra}</p>
         <p className="w-[150px] text-center text-[11px] font-semibold tracking-[0.66px] uppercase">{ticket.leyenda}</p>
-        <p className="text-center text-[13px] text-secundario">{ticket.local}</p>
-        <p className="text-center text-[13px] text-secundario">
+        <p className="text-center text-[13px] text-secundario print:text-texto">{ticket.local}</p>
+        <p className="text-center text-[13px] text-secundario print:text-texto">
           Mesa {ticket.mesa} · Ticket N.º {ticket.numero}
         </p>
-        <p className="text-center text-[13px] text-secundario">{fechaYHora(ticket.emitidoEn)}</p>
+        <p className="text-center text-[13px] text-secundario print:text-texto">{fechaYHora(ticket.emitidoEn)}</p>
 
         {ticket.items.map((item, idx) => (
           <div key={idx} className="flex w-full items-start justify-between gap-2 text-[11px]">
