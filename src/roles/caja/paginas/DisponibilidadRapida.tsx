@@ -31,8 +31,13 @@ function normalizar(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 }
 
-// Se usa en Caja (adentro de MarcoCaja) y en el Admin (sola): no depende del marco.
-export default function DisponibilidadRapida() {
+// Se usa en Caja (adentro de MarcoCaja) y en el Admin (adentro de MarcoAdmin, P-10c): no depende del marco.
+// El Admin le pasa su propio subtítulo.
+export default function DisponibilidadRapida({
+  subtitulo = 'Apagar un plato lo saca del menú de los clientes al instante.',
+}: {
+  subtitulo?: string
+}) {
   const [platos, setPlatos] = useState<PlatoConDisponibilidad[] | null>(null)
   const [errorLista, setErrorLista] = useState<string | null>(null)
   const [busqueda, setBusqueda] = useState('')
@@ -163,7 +168,7 @@ export default function DisponibilidadRapida() {
       <header className="flex min-h-[49px] items-center justify-between gap-4">
         <div className="flex flex-col gap-0.5 leading-[normal]">
           <h1 className="titulo text-[25px]">Disponibilidad rápida</h1>
-          <p className="text-[13px] text-secundario">Apagar un plato lo saca del menú de los clientes al instante.</p>
+          <p className="text-[13px] text-secundario">{subtitulo}</p>
         </div>
         <div className="relative w-[200px] shrink-0">
           <img

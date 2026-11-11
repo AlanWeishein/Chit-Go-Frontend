@@ -6,7 +6,6 @@ import CambiarContrasena from './roles/acceso/paginas/CambiarContrasena'
 import ElegirPin from './roles/acceso/paginas/ElegirPin'
 import LoginAdmin from './roles/acceso/paginas/LoginAdmin'
 import LoginPin from './roles/acceso/paginas/LoginPin'
-import PantallaProvisoria from './roles/acceso/paginas/PantallaProvisoria'
 import { PaginaMenuCliente } from './roles/cliente/paginas/PaginaMenuCliente'
 import PaginaPedidoCliente from './roles/cliente/paginas/PaginaPedidoCliente'
 import PaginaCuentaCliente from './roles/cliente/paginas/PaginaCuentaCliente'
@@ -26,6 +25,9 @@ import DisponibilidadRapida from './roles/caja/paginas/DisponibilidadRapida'
 
 // Rutas de Cocina
 import ColaCocina from './roles/cocina/paginas/ColaCocina'
+
+// Rutas del Admin
+import MarcoAdmin from './roles/admin/componentes/MarcoAdmin'
 
 export default function App() {
   return (
@@ -89,25 +91,39 @@ export default function App() {
         }
       />
 
-      {/* Disponibilidad rápida del Admin (P-10c): sola, antes de /admin/*. El marco del Admin es de la ST-18. */}
+      {/* Admin: el marco con el menú lateral y sus pantallas. /admin/login y /admin/cambiar-contrasena van arriba. */}
       <Route
-        path="/admin/disponibilidad"
+        path="/admin"
         element={
-          <RutaProtegida roles={['ADMIN']}>
+          <RutaProtegida roles={['ADMIN', 'GERENTE_DUENO']}>
             <ConCredencialPropia>
-              <div className="min-h-dvh bg-fondo">
-                <DisponibilidadRapida />
-              </div>
+              <MarcoAdmin />
             </ConCredencialPropia>
           </RutaProtegida>
         }
-      />
-
-      {/* Hasta que cada rol tenga sus pantallas: quién entró y "Cerrar sesión" */}
-      <Route
-        path="/admin/*"
-        element={<RutaProtegida roles={['ADMIN', 'GERENTE_DUENO']}><PantallaProvisoria /></RutaProtegida>}
-      />
+      >
+        {/* El Dashboard (P-13) todavía no existe: se entra por el menú */}
+        <Route index element={<Navigate to="menu" replace />} />
+        <Route path="dashboard" element={<Pendiente titulo="Dashboard" />} />
+        <Route path="menu" element={<Pendiente titulo="Menú" />} />
+        <Route path="mesas" element={<Pendiente titulo="Mesas y QR" />} />
+        <Route path="empleados" element={<Pendiente titulo="Empleados y turnos" />} />
+        <Route path="reportes" element={<Pendiente titulo="Reportes" />} />
+        <Route path="auditoria" element={<Pendiente titulo="Auditoría" />} />
+        <Route path="administradores" element={<Pendiente titulo="Administradores" />} />
+        {/* Disponibilidad rápida del Admin (P-10c, HU-09). El padding extra lleva los 24 px de la pantalla de
+            Caja a los 32 × 28 del Mockup del Admin. */}
+        <Route
+          path="disponibilidad"
+          element={
+            <div className="min-h-full px-2 pt-1">
+              <DisponibilidadRapida subtitulo="Lo mismo que ve Caja (P-10): el Admin lo usa de respaldo cuando Caja no está" />
+            </div>
+          }
+        />
+        <Route path="configuracion" element={<Pendiente titulo="Configuración" />} />
+        <Route path="*" element={<Navigate to="menu" replace />} />
+      </Route>
       <Route path="/plataforma/*" element={<Pendiente titulo="Super Admin" />} />
       <Route path="*" element={<Pendiente titulo="Chit&Go" />} />
     </Routes>
