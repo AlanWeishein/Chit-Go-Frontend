@@ -23,6 +23,7 @@ import MarcoCaja from './roles/caja/componentes/MarcoCaja'
 import { CierreCuentaPage } from './roles/caja/paginas/CierreCuentaPage'
 import ColaAprobacion from './roles/caja/paginas/ColaAprobacion'
 import DisponibilidadRapida from './roles/caja/paginas/DisponibilidadRapida'
+import PedidosAprobados from './roles/caja/paginas/PedidosAprobados'
 
 // Rutas de Cocina
 import ColaCocina from './roles/cocina/paginas/ColaCocina'
@@ -74,7 +75,8 @@ export default function App() {
         <Route path="cuentas" element={<CierreCuentaPage />} />
         {/* Disponibilidad rápida (P-10, HU-09) */}
         <Route path="disponibilidad" element={<DisponibilidadRapida />} />
-        <Route path="aprobados" element={<Pendiente titulo="Pedidos aprobados" />} />
+        {/* Pedidos aprobados: priorizar y cancelar (P-36, HU-08) */}
+        <Route path="aprobados" element={<PedidosAprobados />} />
       </Route>
 
       {/* Cocina: el KDS (P-11) */}
