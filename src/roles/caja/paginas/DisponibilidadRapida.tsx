@@ -44,6 +44,23 @@ export default function DisponibilidadRapida() {
   const ultimoPedido = useRef(0)
   // El estado llega un render tarde: con dos toques seguidos los dos verían `cambiando` en null. La ref corta el segundo.
   const cambiandoRef = useRef(false)
+  // Al cerrar el diálogo el foco vuelve al switch del plato que lo abrió: ese botón estaba deshabilitado cuando
+  // el diálogo tomó el foco, así que el navegador no lo recuerda solo.
+  const switches = useRef(new Map<number, HTMLButtonElement>())
+  const volverA = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (dialogo !== null || volverA.current === null) return
+    const platoId = volverA.current
+    volverA.current = null
+    // Un turno después: el <dialog> al cerrarse también devuelve el foco por su cuenta, y esto va último.
+    setTimeout(() => switches.current.get(platoId)?.focus(), 0)
+  }, [dialogo])
+
+  function cerrarDialogo() {
+    if (dialogo) volverA.current = dialogo.platoId
+    setDialogo(null)
+  }
 
   function recargar() {
     const numero = ++ultimoPedido.current
@@ -104,7 +121,7 @@ export default function DisponibilidadRapida() {
       await cancelarPedidos(dialogo.afectados.map((p) => p.id))
       const n = dialogo.afectados.length
       setExito(n === 1 ? 'Listo: se canceló 1 pedido.' : `Listo: se cancelaron ${n} pedidos.`)
-      setDialogo(null)
+      cerrarDialogo()
     } catch (err) {
       const status = statusDe(err)
       setDialogo((d) =>
@@ -120,7 +137,7 @@ export default function DisponibilidadRapida() {
     try {
       const cambio = await cambiarDisponibilidad(dialogo.platoId, false)
       if (cambio.afectados.length === 0) {
-        setDialogo(null)
+        cerrarDialogo()
       } else {
         setDialogo((d) => (d ? { ...d, afectados: cambio.afectados, enviando: false, error: null, fallo: false } : d))
       }
@@ -247,6 +264,10 @@ export default function DisponibilidadRapida() {
                     </td>
                     <td className="px-2.5">
                       <button
+                        ref={(el) => {
+                          if (el) switches.current.set(p.id, el)
+                          else switches.current.delete(p.id)
+                        }}
                         type="button"
                         role="switch"
                         aria-checked={p.disponible}
@@ -289,7 +310,7 @@ export default function DisponibilidadRapida() {
           enviando={dialogo.enviando}
           error={dialogo.error}
           fallo={dialogo.fallo}
-          alDejarSeguir={() => setDialogo(null)}
+          alDejarSeguir={cerrarDialogo}
           alCancelar={cancelarAfectados}
           alVerComoQuedaron={verComoQuedaron}
         />
