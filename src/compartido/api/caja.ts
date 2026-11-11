@@ -1,3 +1,4 @@
+import type { PedidoDeCocina } from './cocina'
 import { api } from './http'
 
 // ---------- Cola de aprobación (P-08, HU-07 y la alerta de HU-08) ----------
@@ -122,4 +123,18 @@ export function cancelarPedido(id: number) {
 // 204. Solo pedidos APROBADO (todavía sin empezar en cocina).
 export function cambiarPrioridad(id: number, prioridadManual: boolean) {
   return api<void>(`/caja/pedidos/${id}/prioridad`, { method: 'PUT', body: JSON.stringify({ prioridadManual }) })
+}
+
+// ---------- Pedidos aprobados (P-36) ----------
+
+// El mismo DTO que la cola de cocina, en el mismo orden: sinEmpezar con los prioritarios primero y después por
+// aprobación; enPreparacion por la hora en que Cocina los empezó. Sin precios ni disponibilidad: el back no los manda.
+export interface ListaDeAprobados {
+  sinEmpezar: PedidoDeCocina[]
+  enPreparacion: PedidoDeCocina[]
+}
+
+// Sin pedidos, las dos listas vacías (200, no 404). Pide el permiso pedido.priorizar: solo Caja.
+export function listarAprobados() {
+  return api<ListaDeAprobados>('/caja/pedidos/aprobados')
 }
