@@ -1,13 +1,19 @@
 // Los pedidos aprobados de Caja (P-36): la lista a la izquierda, en dos grupos y en el orden de la cocina, y el
-// detalle del pedido elegido a la derecha. Acá se prioriza; cancelar es de la tarea siguiente.
+// detalle del pedido elegido a la derecha. Acá se prioriza y se cancela (P-36b y P-36c).
 // Sin precios, total ni disponibilidad: el DTO de cocina no los manda.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { cambiarPrioridad, listarAprobados, type ListaDeAprobados } from '../../../compartido/api/caja'
+import {
+  cambiarPrioridad,
+  cancelarPedido,
+  listarAprobados,
+  type ListaDeAprobados,
+} from '../../../compartido/api/caja'
 import type { PedidoDeCocina } from '../../../compartido/api/cocina'
 import { statusDe, textoDelError } from '../../../compartido/api/errores'
 import iconoPrioridad from '../../../compartido/ui/iconos/flag-blanco-20.svg'
 import iconoCancelar from '../../../compartido/ui/iconos/x.svg'
 import AvisoDeFallo from '../../acceso/componentes/AvisoDeFallo'
+import ConfirmarCancelacion from '../componentes/ConfirmarCancelacion'
 import EtiquetaDePedido from '../componentes/EtiquetaDePedido'
 import TablaDeItemsAprobados from '../componentes/TablaDeItemsAprobados'
 import TarjetaDeAprobado from '../componentes/TarjetaDeAprobado'
@@ -20,7 +26,9 @@ const boton =
   'flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-[14px] px-[18px] text-[15px] leading-[normal] font-semibold whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primario disabled:cursor-not-allowed disabled:opacity-38'
 
 // Mismo interlineado que en P-08: el aviso hereda 1.5 del body y quedaría más alto que en el Mockup.
-const interlineado = '[&_p:first-child]:leading-[normal]'
+// Y el padding de 14 px del aviso de P-36c: AvisoDeFallo trae 12 y vive en `acceso`, que no se toca.
+// `[&>p]` es el aviso de una línea (el texto va suelto al lado del ícono); `[&_p:first-child]`, el del título.
+const interlineado = 'p-3.5! [&>p]:leading-[normal] [&_p:first-child]:leading-[normal]'
 
 // El Date.now() de la tablet, que avanza solo: todas las tarjetas cambian juntas y hay un solo intervalo.
 function useAhora(cadaMs = 15000): number {
@@ -45,6 +53,12 @@ export default function PedidosAprobados() {
   const [elegidoId, setElegidoId] = useState<number | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
+  // El pedido para el que está abierta la confirmación (P-36b). Guarda su propio id y mesa: la lista puede
+  // recargarse con el diálogo abierto y el pedido elegido ya no ser el mismo.
+  const [aCancelar, setACancelar] = useState<{ id: number; mesa: string } | null>(null)
+  // Pedidos que el back dijo que ya no se pueden cancelar (409): sus botones quedan deshabilitados hasta que la
+  // lista los saque o los pase a "En preparación".
+  const [bloqueados, setBloqueados] = useState<number[]>([])
   // Si salen dos pedidos de la lista seguidos, vale solo la respuesta del último: una vieja que llega tarde no pisa.
   const ultimoPedido = useRef(0)
   // El estado llega un render tarde: con dos toques seguidos los dos verían enviando en false. La ref corta el segundo.
@@ -78,6 +92,8 @@ export default function PedidosAprobados() {
   const todos = [...sinEmpezar, ...enPreparacion]
   const elegido = todos.find((p) => p.id === elegidoId) ?? todos[0]
   const elegidoEnPreparacion = elegido !== undefined && enPreparacion.some((p) => p.id === elegido.id)
+  // Ni priorizar ni cancelar: ya lo empezó la cocina, el back dijo 409 o se está mandando otra cosa.
+  const sinAcciones = enviando || elegidoEnPreparacion || (elegido !== undefined && bloqueados.includes(elegido.id))
 
   function elegirPedido(id: number) {
     setElegidoId(id)
@@ -91,12 +107,38 @@ export default function PedidosAprobados() {
     enviandoRef.current = true
     setEnviando(true)
     setAviso(null)
+    setElegidoId(pedido.id) // sin esto, el "primero" por defecto cambia con la lista y el aviso queda en otro pedido
     try {
       await cambiarPrioridad(pedido.id, !pedido.prioritario)
       cargar()
     } catch (err) {
       const status = statusDe(err)
       if (status === 409 || status === 404) cargar()
+      setAviso(textoDelError(err))
+    } finally {
+      enviandoRef.current = false
+      setEnviando(false)
+    }
+  }
+
+  // "Sí, cancelar pedido". Sale bien: se cierra y se recarga. 409 (ya lo empezaron, o ya estaba cancelado) o 404:
+  // el aviso con el texto del back arriba del detalle (P-36c) y los botones de ese pedido deshabilitados con el 409.
+  // Con otro error, el aviso y los botones habilitados.
+  async function cancelar() {
+    if (!aCancelar || enviandoRef.current) return
+    enviandoRef.current = true
+    setEnviando(true)
+    setAviso(null)
+    const { id } = aCancelar
+    try {
+      await cancelarPedido(id)
+      setACancelar(null)
+      cargar()
+    } catch (err) {
+      const status = statusDe(err)
+      if (status === 409) setBloqueados((ids) => (ids.includes(id) ? ids : [...ids, id]))
+      if (status === 409 || status === 404) cargar()
+      setACancelar(null)
       setAviso(textoDelError(err))
     } finally {
       enviandoRef.current = false
@@ -189,16 +231,24 @@ export default function PedidosAprobados() {
             </p>
 
             <div className="flex items-center gap-2.5">
-              {/* Cancelar es de la tarea 3: hasta entonces queda dibujado y deshabilitado, para que la pantalla
-                  tenga el mismo ancho de botones que el Mockup. */}
-              <button type="button" disabled className={`${boton} border-[1.5px] border-primario text-primario`}>
+              <button
+                type="button"
+                onClick={() => {
+                  // Se fija el pedido elegido: si la cocina lo empieza con el diálogo abierto, el aviso de P-36c
+                  // tiene que quedar sobre este pedido y no sobre el que pase a ser el primero.
+                  setElegidoId(elegido.id)
+                  setACancelar({ id: elegido.id, mesa: elegido.mesa })
+                }}
+                disabled={sinAcciones}
+                className={`${boton} border-[1.5px] border-primario text-primario`}
+              >
                 <img src={iconoCancelar} alt="" width={20} height={20} />
                 Cancelar pedido
               </button>
               <button
                 type="button"
                 onClick={() => priorizar(elegido)}
-                disabled={enviando || elegidoEnPreparacion}
+                disabled={sinAcciones}
                 className={`${boton} bg-primario text-texto-boton`}
               >
                 <img src={iconoPrioridad} alt="" width={20} height={20} />
@@ -207,6 +257,16 @@ export default function PedidosAprobados() {
             </div>
           </section>
         </div>
+      )}
+
+      {aCancelar && (
+        <ConfirmarCancelacion
+          pedidoId={aCancelar.id}
+          mesa={aCancelar.mesa}
+          enviando={enviando}
+          alConfirmar={cancelar}
+          alVolver={() => setACancelar(null)}
+        />
       )}
     </div>
   )
