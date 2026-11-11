@@ -232,8 +232,10 @@ export const CierreCuentaPage: React.FC = () => {
     ));
 
   return (
-    <div className="flex min-h-full flex-col gap-4 px-6 pt-6 pb-4">
-      <header className="flex min-h-12 items-center justify-between gap-4">
+    // Al imprimir sale solo el ticket: todo lo demás va con print:hidden y la página pierde el padding. El margen de arriba
+    // lo pone la sección del ticket, porque el @page (index.css) no tiene margen.
+    <div className="flex min-h-full flex-col gap-4 px-6 pt-6 pb-4 print:block print:min-h-0 print:p-0">
+      <header className="flex min-h-12 items-center justify-between gap-4 print:hidden">
         <div className="flex flex-col gap-0.5 leading-[normal]">
           <h1 className="titulo text-[25px]">Cuentas</h1>
           {!cargando && !errorText && hayAlgo && (
@@ -260,8 +262,8 @@ export const CierreCuentaPage: React.FC = () => {
       ) : !hayAlgo ? (
         <p className="py-10 text-center text-secundario">No hay cuentas abiertas.</p>
       ) : (
-        <div className="flex items-start gap-[14px]">
-          <div className="flex w-[196px] shrink-0 flex-col gap-2">
+        <div className="flex items-start gap-[14px] print:block">
+          <div className="flex w-[196px] shrink-0 flex-col gap-2 print:hidden">
             {solicitadas.length > 0 && (
               <>
                 <p className={rotulo}>Pidieron la cuenta</p>
@@ -277,7 +279,7 @@ export const CierreCuentaPage: React.FC = () => {
             {!elegida && <p className="text-[13px] leading-[normal] text-secundario">No hay cuentas abiertas.</p>}
           </div>
 
-          <section aria-label="Cuenta elegida" className="flex min-w-0 flex-1 flex-col gap-3 pl-[14px]">
+          <section aria-label="Cuenta elegida" className="flex min-w-0 flex-1 flex-col gap-3 pl-[14px] print:hidden">
             {avisoText && <AvisoDeFallo>{avisoText}</AvisoDeFallo>}
 
             {cerrada ? (
@@ -351,8 +353,8 @@ export const CierreCuentaPage: React.FC = () => {
 
           {/* La vista previa del Mockup: el ticket lo arma el back al cerrar, así que antes de cerrar no va. */}
           {cerrada && (
-            <section aria-label="Ticket" className="flex w-[176px] shrink-0 flex-col gap-2">
-              <p className={rotulo}>Vista previa del ticket</p>
+            <section aria-label="Ticket" className="flex w-[176px] shrink-0 flex-col gap-2 print:mx-auto print:pt-[15mm]">
+              <p className={`${rotulo} print:hidden`}>Vista previa del ticket</p>
               <VistaTicket ticket={cerrada.ticket} onCerrar={volverALaLista} />
             </section>
           )}

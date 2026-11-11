@@ -52,8 +52,9 @@ export default function MarcoCaja() {
   }
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-fondo font-inter text-texto">
-      <aside className="flex w-52 shrink-0 flex-col gap-1.5 overflow-y-auto bg-linea px-3.5 pt-[22px] pb-[18px]">
+    // Al imprimir el marco no se dibuja (ver el aside) y la pantalla deja de ser de alto fijo, para que el ticket no se corte.
+    <div className="flex h-dvh overflow-hidden bg-fondo font-inter text-texto print:block print:h-auto print:overflow-visible print:bg-transparent">
+      <aside className="flex w-52 shrink-0 flex-col gap-1.5 overflow-y-auto bg-linea px-3.5 pt-[22px] pb-[18px] print:hidden">
         <div className="mb-[18px] flex items-center gap-2 px-1">
           <p className="titulo text-xl leading-[normal]">Chit&Go</p>
           <p className="rounded-md px-[9px] py-1 text-xs leading-[normal] font-medium">Caja</p>
@@ -112,7 +113,7 @@ export default function MarcoCaja() {
         </button>
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-y-auto">
+      <main className="min-w-0 flex-1 overflow-y-auto print:overflow-visible">
         <Outlet context={{ cola } satisfies DatosCaja} />
       </main>
     </div>
