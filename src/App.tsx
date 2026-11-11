@@ -28,6 +28,7 @@ import ColaCocina from './roles/cocina/paginas/ColaCocina'
 
 // Rutas del Admin
 import MarcoAdmin from './roles/admin/componentes/MarcoAdmin'
+import CartaAdmin from './roles/admin/paginas/CartaAdmin'
 
 export default function App() {
   return (
@@ -105,7 +106,8 @@ export default function App() {
         {/* El Dashboard (P-13) todavía no existe: se entra por el menú */}
         <Route index element={<Navigate to="menu" replace />} />
         <Route path="dashboard" element={<Pendiente titulo="Dashboard" />} />
-        <Route path="menu" element={<Pendiente titulo="Menú" />} />
+        {/* La carta (P-14, HU-12). El alta y la edición (P-14b) y las categorías (P-14c) cuelgan de acá. */}
+        <Route path="menu" element={<CartaAdmin />} />
         <Route path="mesas" element={<Pendiente titulo="Mesas y QR" />} />
         <Route path="empleados" element={<Pendiente titulo="Empleados y turnos" />} />
         <Route path="reportes" element={<Pendiente titulo="Reportes" />} />
