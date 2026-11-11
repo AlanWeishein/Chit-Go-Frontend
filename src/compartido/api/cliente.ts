@@ -61,7 +61,8 @@ export type FalloCliente =
   | { motivo: 'pedido-en-conflicto'; detalle?: string } // 409 al pedir: la cuenta se cerró o un plato ya no está
   | { motivo: 'pedido-invalido' } // 400 al pedir
   | { motivo: 'cancelar-en-conflicto'; detalle?: string } // 409 al cancelar: el pedido ya no está en espera
-  | { motivo: 'sesion-invalida' } // 403 al pedir el estado o al cancelar: la sesión no vale o el pedido es de otra
+  | { motivo: 'cuenta-en-conflicto'; detalle?: string } // 409 al pedir la cuenta: sin servir, ya pedida o cerrada
+  | { motivo: 'sesion-invalida' } // 403 al pedir el estado, cancelar o pedir la cuenta: la sesión no vale o no es la iniciadora
   | { motivo: 'red' } // sin conexión o error inesperado
 
 export class ClienteFallido extends Error {
@@ -70,7 +71,7 @@ export class ClienteFallido extends Error {
   }
 }
 
-type Endpoint = 'mesa' | 'sesion' | 'carta' | 'llamar-mozo' | 'pedido' | 'estado' | 'cancelar'
+type Endpoint = 'mesa' | 'sesion' | 'carta' | 'llamar-mozo' | 'pedido' | 'estado' | 'cancelar' | 'solicitar-cuenta'
 
 function detalleDe(err: ApiError): string | undefined {
   const cuerpo = err.detalle as ProblemDetail | undefined
@@ -88,6 +89,13 @@ export function traducirError(err: unknown, endpoint?: Endpoint): FalloCliente {
     if (err.status === 400) return { motivo: 'pedido-invalido' }
     // El 409 es la cuenta cerrada o un plato que ya no está, y el status no los distingue: se muestra el detail del back.
     if (err.status === 409) return { motivo: 'pedido-en-conflicto', detalle: detalleDe(err) }
+    return { motivo: 'red' }
+  }
+  if (endpoint === 'solicitar-cuenta') {
+    if (err.status === 403) return { motivo: 'sesion-invalida' }
+    // El back no manda un codigo: el 409 puede ser pedidos sin servir, cuenta ya pedida o cerrada, o un choque de
+    // versión. El status no los distingue y el texto no se compara: la pantalla vuelve a pedir el estado y decide.
+    if (err.status === 409) return { motivo: 'cuenta-en-conflicto', detalle: detalleDe(err) }
     return { motivo: 'red' }
   }
   if (endpoint === 'estado' || endpoint === 'cancelar') {
@@ -172,6 +180,14 @@ export async function enviarPedido(tokenSesion: string, pedido: PedidoAEnviar): 
 export function obtenerEstadoDeSesion(tokenSesion: string): Promise<EstadoDeSesion> {
   return conTraduccion('estado', () =>
     api<EstadoDeSesion>('/public/sesion/estado', { headers: { 'X-Session-Token': tokenSesion } }),
+  )
+}
+
+// Solo la sesión iniciadora. 204 si la cuenta quedó SOLICITADA. 409 si hay pedidos sin servir, si ya estaba
+// pedida o si está cerrada.
+export async function solicitarCuenta(tokenSesion: string): Promise<void> {
+  await conTraduccion('solicitar-cuenta', () =>
+    api<unknown>('/public/cuenta/solicitar', { method: 'POST', headers: { 'X-Session-Token': tokenSesion } }),
   )
 }
 

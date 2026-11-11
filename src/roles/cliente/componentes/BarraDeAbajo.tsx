@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { Children, useEffect, useState, type ReactNode } from 'react'
 import { llamarAlMozo, traducirError } from '../../../compartido/api/cliente'
 import iconoCampana22 from '../../../compartido/ui/iconos/bell.svg'
 import iconoCampana20 from '../../../compartido/ui/iconos/bell-20.svg'
@@ -11,6 +11,7 @@ const DURACION_AVISO_MS = 5000
 
 // La barra fija de abajo del cliente: "Llamar al mozo" a la izquierda y, si la pantalla tiene una,
 // su acción principal a la derecha (children). Sin acción, "Llamar al mozo" ocupa todo el ancho (P-01b).
+// Cuenta solo lo que se dibuja: un hijo condicional que da false, null o undefined no es una acción.
 export default function BarraDeAbajo({ tokenSesion, children }: { tokenSesion: string; children?: ReactNode }) {
   const [llamado, setLlamado] = useState<Llamado>('libre')
 
@@ -34,7 +35,7 @@ export default function BarraDeAbajo({ tokenSesion, children }: { tokenSesion: s
   }
 
   const avisado = llamado === 'avisado'
-  const conAccion = children !== undefined && children !== null && children !== false
+  const conAccion = Children.toArray(children).length > 0
   const texto = avisado ? 'Mozo avisado' : llamado === 'llamando' ? 'Avisando…' : 'Llamar al mozo'
 
   return (
