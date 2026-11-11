@@ -1,7 +1,7 @@
 // El marco de todas las pantallas del Admin (escritorio, 1280 × 800): el menú lateral del Mockup (P-14, P-10c) y,
 // a la derecha, la pantalla de cada ruta. El padding de la derecha lo pone cada pantalla.
-import { useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { useRef, useState, type MouseEvent } from 'react'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useSesion } from '../../../compartido/sesion/SesionContext'
 import { nombreDelRol } from '../../../compartido/sesion/rutas'
 import iconoMenu from '../../../compartido/ui/iconos/book.svg'
@@ -14,6 +14,7 @@ import iconoAdministradores from '../../../compartido/ui/iconos/key.svg'
 import iconoSalir from '../../../compartido/ui/iconos/logout.svg'
 import iconoAuditoria from '../../../compartido/ui/iconos/shield.svg'
 import iconoEmpleados from '../../../compartido/ui/iconos/users.svg'
+import { ContextoGuardia, type Guardia } from '../guardiaDeSalida'
 
 // En el orden del Mockup.
 const seccionesAdmin = [
@@ -45,7 +46,10 @@ function IconoDeSeccion({ src, activo }: { src: string; activo: boolean }) {
 
 export default function MarcoAdmin() {
   const { sesion, cerrar } = useSesion()
+  const navigate = useNavigate()
   const [saliendo, setSaliendo] = useState(false)
+  // La pantalla abierta puede frenar la salida si tiene algo sin guardar (ver guardiaDeSalida.ts).
+  const guardia = useRef<Guardia | null>(null)
 
   if (!sesion) return null
 
@@ -53,6 +57,13 @@ export default function MarcoAdmin() {
   async function salir() {
     setSaliendo(true)
     await cerrar().catch(() => undefined)
+  }
+
+  // Un clic común en un ítem pasa por la guardia. Con Ctrl, Cmd, Mayús o el botón del medio se abre en otra
+  // pestaña y esta pantalla no se pierde, así que no se frena.
+  function irA(e: MouseEvent<HTMLAnchorElement>, destino: string) {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+    if (guardia.current?.(() => navigate(destino))) e.preventDefault()
   }
 
   return (
@@ -69,6 +80,7 @@ export default function MarcoAdmin() {
             <NavLink
               key={s.a}
               to={s.a}
+              onClick={(e) => irA(e, s.a)}
               className={({ isActive }) =>
                 // El borde del ítem abierto corre el contenido 1.5 px, como en el Mockup; los otros lo compensan
                 // con el padding.
@@ -93,7 +105,9 @@ export default function MarcoAdmin() {
         <p className="text-[13px] leading-[normal]">{nombreDelRol(sesion.rol)}</p>
         <button
           type="button"
-          onClick={salir}
+          onClick={() => {
+            if (!guardia.current?.(salir)) void salir()
+          }}
           disabled={saliendo}
           className={`flex h-11 shrink-0 items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-primario px-[18px] text-[15px] font-semibold text-primario disabled:opacity-50 ${foco}`}
         >
@@ -103,7 +117,9 @@ export default function MarcoAdmin() {
       </aside>
 
       <main className="min-w-0 flex-1 overflow-y-auto">
-        <Outlet />
+        <ContextoGuardia.Provider value={guardia}>
+          <Outlet />
+        </ContextoGuardia.Provider>
       </main>
     </div>
   )

@@ -65,8 +65,7 @@ interface Datos {
 // plato solo: al editar se pide la lista completa y se busca por id.
 export default function FormularioDePlato() {
   const { platoId } = useParams()
-  // Lo que no es un número no es un plato. /admin/menu/categorias cae acá hasta que la tarea 4 le ponga su ruta, y
-  // se lo trata como hasta ahora: de vuelta a la carta.
+  // Lo que no es un número no es un plato (/admin/menu/categorias tiene su propia ruta): de vuelta a la carta.
   if (platoId !== undefined && !/^\d+$/.test(platoId)) return <Navigate to="/admin/menu" replace />
   // La key reinicia el formulario al pasar del alta al plato recién creado (ver `guardar`).
   return <CargaDelFormulario key={platoId ?? 'nuevo'} platoId={platoId} />

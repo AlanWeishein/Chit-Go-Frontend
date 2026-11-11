@@ -29,6 +29,7 @@ import ColaCocina from './roles/cocina/paginas/ColaCocina'
 // Rutas del Admin
 import MarcoAdmin from './roles/admin/componentes/MarcoAdmin'
 import CartaAdmin from './roles/admin/paginas/CartaAdmin'
+import CategoriasYEtiquetas from './roles/admin/paginas/CategoriasYEtiquetas'
 import FormularioDePlato from './roles/admin/paginas/FormularioDePlato'
 
 export default function App() {
@@ -109,6 +110,7 @@ export default function App() {
         <Route path="dashboard" element={<Pendiente titulo="Dashboard" />} />
         {/* La carta (P-14, HU-12). El alta y la edición (P-14b) y las categorías (P-14c) cuelgan de acá. */}
         <Route path="menu" element={<CartaAdmin />} />
+        <Route path="menu/categorias" element={<CategoriasYEtiquetas />} />
         <Route path="menu/nuevo" element={<FormularioDePlato />} />
         <Route path="menu/:platoId" element={<FormularioDePlato />} />
         <Route path="mesas" element={<Pendiente titulo="Mesas y QR" />} />
