@@ -10,6 +10,9 @@ import { PaginaMenuCliente } from './roles/cliente/paginas/PaginaMenuCliente'
 import PaginaPedidoCliente from './roles/cliente/paginas/PaginaPedidoCliente'
 import PaginaCuentaCliente from './roles/cliente/paginas/PaginaCuentaCliente'
 
+//Pantalla Publico (P-20, HU-17)
+import { PantallaPublicaPage } from './roles/salon/paginas/PantallaPublicaPage'
+
 // Rutas del Mozo
 import MarcoMozo from './roles/mozo/componentes/MarcoMozo'
 import MisMesas from './roles/mozo/paginas/MisMesas'
@@ -44,6 +47,7 @@ export default function App() {
       <Route path="/staff/:token/elegir-pin" element={<ElegirPin />} />
       <Route path="/admin/login" element={<LoginAdmin />} />
       <Route path="/admin/cambiar-contrasena" element={<CambiarContrasena />} />
+      <Route path="/publico" element={<PantallaPublicaPage />} />
       
       {/* Vista del Mozo */}
       <Route
