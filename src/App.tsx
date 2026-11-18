@@ -32,6 +32,9 @@ import MarcoAdmin from './roles/admin/componentes/MarcoAdmin'
 import CartaAdmin from './roles/admin/paginas/CartaAdmin'
 import CategoriasYEtiquetas from './roles/admin/paginas/CategoriasYEtiquetas'
 import FormularioDePlato from './roles/admin/paginas/FormularioDePlato'
+import InicioDelAdmin from './roles/admin/paginas/InicioDelAdmin'
+import AdministradoresAdmin from './roles/admin/paginas/AdministradoresAdmin'
+import FormularioDeAdmin from './roles/admin/paginas/FormularioDeAdmin'
 
 export default function App() {
   return (
@@ -107,8 +110,8 @@ export default function App() {
           </RutaProtegida>
         }
       >
-        {/* El Dashboard (P-13) todavía no existe: se entra por el menú */}
-        <Route index element={<Navigate to="menu" replace />} />
+        {/* Inicio inteligente: Gerente va a administradores, Admin común a menú */}
+        <Route index element={<InicioDelAdmin />} />
         <Route path="dashboard" element={<Pendiente titulo="Dashboard" />} />
         {/* La carta (P-14, HU-12). El alta y la edición (P-14b) y las categorías (P-14c) cuelgan de acá. */}
         <Route path="menu" element={<CartaAdmin />} />
@@ -119,7 +122,11 @@ export default function App() {
         <Route path="empleados" element={<Pendiente titulo="Empleados y turnos" />} />
         <Route path="reportes" element={<Pendiente titulo="Reportes" />} />
         <Route path="auditoria" element={<Pendiente titulo="Auditoría" />} />
-        <Route path="administradores" element={<Pendiente titulo="Administradores" />} />
+        
+        {/* Rutas para la gestión de Administradores (HU-16, exclusivas para Gerente/Dueño) */}
+        <Route path="administradores" element={<AdministradoresAdmin />} />
+        <Route path="administradores/nuevo" element={<FormularioDeAdmin />} />
+
         {/* Disponibilidad rápida del Admin (P-10c, HU-09). El padding extra lleva los 24 px de la pantalla de
             Caja a los 32 × 28 del Mockup del Admin. */}
         <Route
@@ -131,7 +138,7 @@ export default function App() {
           }
         />
         <Route path="configuracion" element={<Pendiente titulo="Configuración" />} />
-        <Route path="*" element={<Navigate to="menu" replace />} />
+        <Route path="*" element={<InicioDelAdmin />} />
       </Route>
       <Route path="/plataforma/*" element={<Pendiente titulo="Super Admin" />} />
       <Route path="*" element={<Pendiente titulo="Chit&Go" />} />
