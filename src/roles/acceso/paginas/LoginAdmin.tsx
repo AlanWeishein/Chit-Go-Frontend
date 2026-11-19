@@ -60,7 +60,7 @@ export default function LoginAdmin() {
           <input
             id="email"
             type="email"
-            maxLength={254}
+            maxLength={160}
             autoComplete="username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -74,7 +74,6 @@ export default function LoginAdmin() {
           valor={password}
           onCambio={setPassword}
           autoComplete="current-password"
-          maxLength={PASSWORD_MAX}
         />
 
         <button type="submit" disabled={enviando || !valido} className={botonPrincipal}>

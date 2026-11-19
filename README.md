@@ -35,6 +35,9 @@ sea `false`. En el build de producción los mocks nunca se usan.
 - `npm run preview`: sirve el build ya armado.
 - `npm run typecheck`: solo revisa los tipos.
 
+`npm run dev` no revisa los tipos: un error de TypeScript no frena el servidor, pero sí el build. Antes de
+abrir un PR, correr `npm run build`.
+
 No hay tests automáticos. Cada cambio se prueba con `npm run build` y un recorrido en el navegador, a
 375 px de ancho (el acceso, también a 768, 1024 y 1280), contra el back real.
 
@@ -187,6 +190,9 @@ sistema y puede quedar por debajo de 3:1.
 ## Ramas
 
 `main` estable, `develop` en desarrollo, `feature/...` por tarea. PR a `develop`, lo revisa otro.
+
+Cada PR a `develop` o a `main` corre `npm run build` en GitHub Actions (`.github/workflows/build.yml`), y
+también cada push a `develop`. Si el check `build` sale en rojo, el PR no se mergea.
 
 ## Todavía no está
 
