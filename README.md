@@ -19,6 +19,21 @@ exactas están en `package.json`). Hace falta Node 20.19+ o 22.12+, que es lo qu
 Se entra siempre por la URL de Vite, nunca directo al 8080. En desarrollo Vite reenvía `/api` y `/ws` al
 back (`vite.config.ts`), así el front y la API comparten origen y las cookies andan sin CORS.
 
+## Imagen de Docker
+
+El `Dockerfile` arma la imagen del front en dos etapas: compila con Node (`npm ci` y `npm run build`) y
+sirve el `dist/` con nginx, con un usuario sin privilegios. `nginx.conf` hace lo mismo que el proxy de Vite:
+reenvía `/api` y `/ws` al back, que tiene que llamarse `back` y escuchar en el 8080. Cualquier otra ruta
+devuelve `index.html`.
+
+```
+docker build -t chitgo-front .
+docker run --rm -p 8088:80 --add-host=back:host-gateway chitgo-front
+```
+
+El segundo comando usa el back que corre en la compu (en el 8080, con `dev`), y el front queda en
+`http://localhost:8088`. El compose completo (base, back y front) está en el repo de entrega.
+
 ## Variables de entorno
 
 Hay una sola, y es opcional: `VITE_MOCKS`. Con `VITE_MOCKS=true` en un archivo `.env.local` (que git
