@@ -1,4 +1,6 @@
-export type RolUsuario = 'MOZO' | 'CAJA' | 'COCINA' | 'ADMIN' | 'GERENTE_DUENO';
+import type { Rol } from '../api/auth'
+
+export type RolUsuario = Rol;
 
 export interface UsuarioStaff {
   id: number;

@@ -5,6 +5,7 @@ interface ValorSesion {
   sesion: Sesion | null
   cargando: boolean // true mientras se pregunta a /auth/sesion al abrir la app
   guardarSesion: (s: Sesion) => void
+  invalidarSesion: () => void // un 401 ya confirmó que la cookie no abre una sesión
   cerrar: () => Promise<void>
 }
 
@@ -34,9 +35,11 @@ export function SesionProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const invalidarSesion = useCallback(() => setSesion(null), [])
+
   const valor = useMemo<ValorSesion>(
-    () => ({ sesion, cargando, guardarSesion: setSesion, cerrar }),
-    [sesion, cargando, cerrar],
+    () => ({ sesion, cargando, guardarSesion: setSesion, invalidarSesion, cerrar }),
+    [sesion, cargando, invalidarSesion, cerrar],
   )
 
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>

@@ -4,7 +4,7 @@ import { api, ApiError, type ProblemDetail } from './http'
 
 /* ---------------- Tipos (forma exacta del contrato del back) ---------------- */
 
-export type Rol = 'MOZO' | 'CAJA' | 'COCINA' | 'ADMIN' | 'GERENTE_DUENO'
+export type Rol = 'MOZO' | 'CAJA' | 'COCINA' | 'ADMIN' | 'GERENTE_DUENO' | 'SUPERADMIN'
 
 export interface Local {
   id: number

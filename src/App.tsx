@@ -9,6 +9,7 @@ import PantallaProvisoria from './roles/acceso/paginas/PantallaProvisoria'
 import { PaginaMenuCliente } from './roles/cliente/paginas/PaginaMenuCliente'
 import PaginaPedidoCliente from './roles/cliente/paginas/PaginaPedidoCliente'
 import PaginaCuentaCliente from './roles/cliente/paginas/PaginaCuentaCliente'
+import PanelPlataforma from './roles/plataforma/paginas/PanelPlataforma'
 
 export default function App() {
   return (
@@ -29,7 +30,7 @@ export default function App() {
         path="/admin/*"
         element={<RutaProtegida roles={['ADMIN', 'GERENTE_DUENO']}><PantallaProvisoria /></RutaProtegida>}
       />
-      <Route path="/plataforma/*" element={<Pendiente titulo="Super Admin" />} />
+      <Route path="/plataforma/*" element={<RutaProtegida roles={['SUPERADMIN']}><PanelPlataforma /></RutaProtegida>} />
       <Route path="*" element={<Pendiente titulo="Chit&Go" />} />
     </Routes>
   )

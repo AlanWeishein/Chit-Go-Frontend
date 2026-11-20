@@ -5,7 +5,7 @@ import { Navigate, useNavigate } from 'react-router-dom'
 import { elegirCredencial, obtenerSesion, traducirError, type FalloLogin } from '../../../compartido/api/auth'
 import { useSesion } from '../../../compartido/sesion/SesionContext'
 import { leerTokenStaff } from '../../../compartido/sesion/tokenStaff'
-import { entraConEmail, rutaDeEntrada, rutaInicial } from '../../../compartido/sesion/rutas'
+import { entraConEmail, nombreDelRol, rutaDeEntrada, rutaInicial } from '../../../compartido/sesion/rutas'
 import iconoFlechaDer from '../../../compartido/ui/iconos/arrow-r.svg'
 import iconoUsuario from '../../../compartido/ui/iconos/user.svg'
 import AvisoDeFallo from '../componentes/AvisoDeFallo'
@@ -80,7 +80,7 @@ export default function CambiarContrasena() {
       <div className="flex flex-col gap-4">
         <EncabezadoDelFormulario
           titulo="Cambiá tu contraseña"
-          bajada={`Primer ingreso · ${esAdmin && local ? `Admin de ${local}` : 'Gerente/Dueño'}`}
+          bajada={`Primer ingreso · ${esAdmin && local ? `Admin de ${local}` : nombreDelRol(sesion.rol)}`}
         />
 
         {textoDelAviso && <AvisoDeFallo>{textoDelAviso}</AvisoDeFallo>}

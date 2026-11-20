@@ -2,12 +2,12 @@ import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
 import type { Rol } from '../api/auth'
 import { useSesion } from './SesionContext'
-import { rutaInicial } from './rutas'
+import { entraConEmail, rutaInicial } from './rutas'
 import { leerTokenStaff } from './tokenStaff'
 
 // A qué login mandar cuando no hay sesión (nunca existió o venció).
 function rutaDeLogin(roles: Rol[]): string {
-  if (roles.every((r) => r === 'ADMIN' || r === 'GERENTE_DUENO')) return '/admin/login'
+  if (roles.every(entraConEmail)) return '/admin/login'
   const token = leerTokenStaff()
   if (!token) return '/' // sin token conocido no sabemos de qué local es
   const login = `/staff/${encodeURIComponent(token)}`

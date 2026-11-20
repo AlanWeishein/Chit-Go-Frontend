@@ -7,12 +7,13 @@ export function rutaInicial(rol: Rol): string {
     case 'COCINA': return '/cocina/cola'
     case 'ADMIN':
     case 'GERENTE_DUENO': return '/admin'
+    case 'SUPERADMIN': return '/plataforma/locales/nuevo'
     default: return '/'
   }
 }
 
 export function entraConEmail(rol: Rol): boolean {
-  return rol === 'ADMIN' || rol === 'GERENTE_DUENO'
+  return rol === 'ADMIN' || rol === 'GERENTE_DUENO' || rol === 'SUPERADMIN'
 }
 
 // A dónde va alguien que ya entró: a elegir su credencial si es provisoria, o a la pantalla de su rol.
@@ -30,5 +31,6 @@ export function nombreDelRol(rol: Rol): string {
     case 'COCINA': return 'Cocina'
     case 'ADMIN': return 'Admin'
     case 'GERENTE_DUENO': return 'Gerente/Dueño'
+    case 'SUPERADMIN': return 'SuperAdmin'
   }
 }
