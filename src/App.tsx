@@ -10,7 +10,7 @@ import { PaginaMenuCliente } from './roles/cliente/paginas/PaginaMenuCliente'
 import PaginaPedidoCliente from './roles/cliente/paginas/PaginaPedidoCliente'
 import PaginaCuentaCliente from './roles/cliente/paginas/PaginaCuentaCliente'
 
-//Pantalla Publico (P-20, HU-17)
+// Pantalla del salón (P-20, HU-17): pública, el token de la dirección dice de qué local es
 import { PantallaPublicaPage } from './roles/salon/paginas/PantallaPublicaPage'
 
 // Rutas del Mozo
@@ -38,6 +38,7 @@ import FormularioDePlato from './roles/admin/paginas/FormularioDePlato'
 import InicioDelAdmin from './roles/admin/paginas/InicioDelAdmin'
 import AdministradoresAdmin from './roles/admin/paginas/AdministradoresAdmin'
 import GestionMesasPage from './roles/admin/paginas/GestionMesasPage'
+import ConfiguracionAdmin from './roles/admin/paginas/ConfiguracionAdmin'
 import SoloPara from './roles/admin/componentes/SoloPara'
 import { LOS_DOS, SOLO_ADMIN, SOLO_GERENTE } from './roles/admin/secciones'
 
@@ -52,7 +53,7 @@ export default function App() {
       <Route path="/staff/:token/elegir-pin" element={<ElegirPin />} />
       <Route path="/admin/login" element={<LoginAdmin />} />
       <Route path="/admin/cambiar-contrasena" element={<CambiarContrasena />} />
-      <Route path="/publico" element={<PantallaPublicaPage />} />
+      <Route path="/pantalla/:token" element={<PantallaPublicaPage />} />
       
       {/* Vista del Mozo */}
       <Route
@@ -145,7 +146,8 @@ export default function App() {
             </SoloPara>
           }
         />
-        <Route path="configuracion" element={<SoloPara roles={SOLO_ADMIN}><Pendiente titulo="Configuración" /></SoloPara>} />
+        {/* La configuración del local (P-34) y el link de la pantalla del salón (HU-17). */}
+        <Route path="configuracion" element={<SoloPara roles={SOLO_ADMIN}><ConfiguracionAdmin /></SoloPara>} />
         <Route path="*" element={<InicioDelAdmin />} />
       </Route>
       <Route path="/plataforma/*" element={<Pendiente titulo="Super Admin" />} />
