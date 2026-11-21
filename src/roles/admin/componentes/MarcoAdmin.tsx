@@ -46,8 +46,9 @@ export default function MarcoAdmin() {
   }
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-fondo font-inter text-texto">
-      <aside className="flex w-58 shrink-0 flex-col gap-1.5 overflow-y-auto bg-linea px-3.5 pt-[22px] pb-[18px]">
+    // Al imprimir (los QR de P-38) sale solo lo que la pantalla deja: el menú se esconde y el main no recorta.
+    <div className="flex h-dvh overflow-hidden bg-fondo font-inter text-texto print:block print:h-auto print:overflow-visible print:bg-transparent">
+      <aside className="flex w-58 shrink-0 flex-col gap-1.5 overflow-y-auto bg-linea px-3.5 pt-[22px] pb-[18px] print:hidden">
         <div className="flex items-center gap-2 px-1">
           <p className="titulo text-xl leading-[normal]">Chit&Go</p>
           <p className="rounded-md px-[9px] py-1 text-xs leading-[normal] font-medium">Admin</p>
@@ -95,7 +96,7 @@ export default function MarcoAdmin() {
         </button>
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-y-auto">
+      <main className="min-w-0 flex-1 overflow-y-auto print:overflow-visible">
         <ContextoGuardia.Provider value={guardia}>
           <Outlet />
         </ContextoGuardia.Provider>

@@ -37,6 +37,7 @@ import CategoriasYEtiquetas from './roles/admin/paginas/CategoriasYEtiquetas'
 import FormularioDePlato from './roles/admin/paginas/FormularioDePlato'
 import InicioDelAdmin from './roles/admin/paginas/InicioDelAdmin'
 import AdministradoresAdmin from './roles/admin/paginas/AdministradoresAdmin'
+import GestionMesasPage from './roles/admin/paginas/GestionMesasPage'
 import SoloPara from './roles/admin/componentes/SoloPara'
 import { LOS_DOS, SOLO_ADMIN, SOLO_GERENTE } from './roles/admin/secciones'
 
@@ -124,7 +125,8 @@ export default function App() {
         <Route path="menu/categorias" element={<SoloPara roles={SOLO_ADMIN}><CategoriasYEtiquetas /></SoloPara>} />
         <Route path="menu/nuevo" element={<SoloPara roles={SOLO_ADMIN}><FormularioDePlato /></SoloPara>} />
         <Route path="menu/:platoId" element={<SoloPara roles={SOLO_ADMIN}><FormularioDePlato /></SoloPara>} />
-        <Route path="mesas" element={<SoloPara roles={SOLO_ADMIN}><Pendiente titulo="Mesas y QR" /></SoloPara>} />
+        {/* Mesas y QR (P-15) y el QR impreso (P-38), HU-13. */}
+        <Route path="mesas" element={<SoloPara roles={SOLO_ADMIN}><GestionMesasPage /></SoloPara>} />
         <Route path="empleados" element={<SoloPara roles={SOLO_ADMIN}><Pendiente titulo="Empleados y turnos" /></SoloPara>} />
         <Route path="reportes" element={<SoloPara roles={LOS_DOS}><Pendiente titulo="Reportes" /></SoloPara>} />
         <Route path="auditoria" element={<SoloPara roles={LOS_DOS}><Pendiente titulo="Auditoría" /></SoloPara>} />
