@@ -53,6 +53,9 @@ sea `false`. En el build de producción los mocks nunca se usan.
 `npm run dev` no revisa los tipos: un error de TypeScript no frena el servidor, pero sí el build. Antes de
 abrir un PR, correr `npm run build`.
 
+Después de traer cambios (un `pull` o un merge) que tocan `package-lock.json`, correr `npm install`: si no,
+falta en `node_modules` el paquete nuevo y el build no encuentra el import.
+
 No hay tests automáticos. Cada cambio se prueba con `npm run build` y un recorrido en el navegador, a
 375 px de ancho (el acceso, también a 768, 1024 y 1280), contra el back real.
 
