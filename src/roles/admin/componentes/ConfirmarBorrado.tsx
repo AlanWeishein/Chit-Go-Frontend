@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-// Confirmación de borrado con el <dialog> nativo (mismo patrón que ConfirmarCierre): showModal() deja inerte lo
+// Baja de un empleado, con el <dialog> nativo (mismo patrón que ConfirmarCierre): showModal() deja inerte lo
 // de afuera y encierra el foco; Escape y el clic en el fondo equivalen a "No, volver", salvo mientras manda.
 export default function ConfirmarBorrado({
   nombre,
@@ -20,7 +20,7 @@ export default function ConfirmarBorrado({
     const dialogo = dialogoRef.current
     const abrio = document.activeElement instanceof HTMLElement ? document.activeElement : null
     if (dialogo && !dialogo.open) dialogo.showModal()
-    volverRef.current?.focus() // el foco arranca en el botón que no hace nada: un Enter apurado no borra
+    volverRef.current?.focus() // el foco arranca en el botón que no hace nada: un Enter apurado no da de baja
     return () => {
       dialogo?.close()
       if (abrio?.isConnected) abrio.focus() // al cerrar, el foco vuelve a quien lo abrió
@@ -30,7 +30,7 @@ export default function ConfirmarBorrado({
   return (
     <dialog
       ref={dialogoRef}
-      aria-labelledby="titulo-borrar-empleado"
+      aria-labelledby="titulo-baja-empleado"
       onCancel={(e) => {
         e.preventDefault()
         if (!borrando) alVolver()
@@ -41,11 +41,11 @@ export default function ConfirmarBorrado({
       className="m-auto w-full max-w-md rounded-3xl bg-tarjeta p-0 text-texto shadow-xl backdrop:bg-[rgba(0,0,0,0.42)]"
     >
       <div className="p-8">
-        <h2 id="titulo-borrar-empleado" className="font-[Fraunces] text-2xl font-semibold">
-          ¿Borrar a {nombre}?
+        <h2 id="titulo-baja-empleado" className="font-[Fraunces] text-2xl font-semibold">
+          ¿Dar de baja a {nombre}?
         </h2>
         <p className="mt-3 text-secundario">
-          Ya no va a poder entrar al sistema. Esta acción no se puede deshacer.
+          No va a poder entrar más al sistema. Sigue en la lista, sin poder editarlo, y sus pedidos y su auditoría se conservan.
         </p>
         <div className="mt-6 flex gap-3">
           <button
@@ -63,7 +63,7 @@ export default function ConfirmarBorrado({
             disabled={borrando}
             className="min-h-12 flex-1 rounded-xl bg-primario font-semibold text-texto-boton disabled:opacity-60"
           >
-            {borrando ? 'Un momento…' : 'Sí, borrar'}
+            {borrando ? 'Un momento…' : 'Sí, dar de baja'}
           </button>
         </div>
       </div>

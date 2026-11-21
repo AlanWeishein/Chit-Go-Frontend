@@ -4,7 +4,7 @@ import {
   crearEmpleado,
   editarEmpleado,
   listarEmpleados,
-  type Empleado,
+  type EmpleadoResumen as Empleado,
   type RolDeEmpleado,
 } from '../../../compartido/api/empleados'
 import { textoDelError } from '../../../compartido/api/errores'
@@ -61,10 +61,10 @@ function Formulario({ empleadoId }: { empleadoId: string | undefined }) {
   useEffect(() => {
     if (!esEdicion) return
     let vigente = true
-    listarEmpleados()
-      .then((lista) => {
+    listarEmpleados(0, 100) // provisorio hasta la tarea 7 de la ST-31, que pide GET /admin/empleados/{id}
+      .then((pagina) => {
         if (!vigente) return
-        const e = lista.find((x) => x.id === Number(empleadoId))
+        const e = pagina.contenido.find((x) => x.id === Number(empleadoId))
         if (!e) {
           setErrorCarga('El empleado no existe.')
           return
@@ -72,7 +72,6 @@ function Formulario({ empleadoId }: { empleadoId: string | undefined }) {
         setEmpleado(e)
         setNombre(e.nombre)
         setRol(e.rol)
-        setTurno(e.turno ?? '')
       })
       .catch((err) => {
         if (vigente) setErrorCarga(textoDelError(err))

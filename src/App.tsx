@@ -38,6 +38,7 @@ import FormularioDePlato from './roles/admin/paginas/FormularioDePlato'
 import InicioDelAdmin from './roles/admin/paginas/InicioDelAdmin'
 import AdministradoresAdmin from './roles/admin/paginas/AdministradoresAdmin'
 import GestionMesasPage from './roles/admin/paginas/GestionMesasPage'
+import EmpleadosAdmin from './roles/admin/paginas/EmpleadosAdmin'
 import ConfiguracionAdmin from './roles/admin/paginas/ConfiguracionAdmin'
 import ReportesAdmin from './roles/admin/paginas/ReportesAdmin'
 import AuditoriaAdmin from './roles/admin/paginas/AuditoriaAdmin'
@@ -130,7 +131,8 @@ export default function App() {
         <Route path="menu/:platoId" element={<SoloPara roles={SOLO_ADMIN}><FormularioDePlato /></SoloPara>} />
         {/* Mesas y QR (P-15) y el QR impreso (P-38), HU-13. */}
         <Route path="mesas" element={<SoloPara roles={SOLO_ADMIN}><GestionMesasPage /></SoloPara>} />
-        <Route path="empleados" element={<SoloPara roles={SOLO_ADMIN}><Pendiente titulo="Empleados y turnos" /></SoloPara>} />
+        {/* Empleados y turnos (P-16), HU-14. El alta y la edición (P-23) son de la tarea 7 de la ST-31. */}
+        <Route path="empleados" element={<SoloPara roles={SOLO_ADMIN}><EmpleadosAdmin /></SoloPara>} />
         {/* Reportes (P-17) y auditoría (P-18), HU-15. Las ven los dos roles; cada uno pide a su ruta del back. */}
         <Route path="reportes" element={<SoloPara roles={LOS_DOS}><ReportesAdmin /></SoloPara>} />
         <Route path="auditoria" element={<SoloPara roles={LOS_DOS}><AuditoriaAdmin /></SoloPara>} />
