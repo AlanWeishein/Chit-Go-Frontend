@@ -90,6 +90,8 @@ Rutas (`src/App.tsx`):
 - `/staff/{tokenStaff}`: el login con PIN de Mozo, Caja y Cocina. `/staff/{tokenStaff}/elegir-pin` es el primer ingreso.
 - `/staff/{tokenStaff}/caja`: la entrada de la tablet de Caja (dos paneles). Siempre muestra la lista de nombres, sin mirar la cookie de dispositivo. `?cerrada=inactividad` muestra el aviso de sesión cortada, que hoy nada dispara.
 - `/admin/login`: el login con email del Admin y del Gerente/Dueño. `/admin/cambiar-contrasena` es su primer ingreso.
+- `/pantalla/{tokenPantalla}`: la pantalla del salón (P-20), pública y sin login. Muestra los pedidos en preparación y
+  listos, y se actualiza por WebSocket. El Admin saca la dirección de Configuración (`/admin/configuracion`, P-34).
 - `/caja`: el marco de Caja, con su menú. `/caja/pedidos` es la cola de aprobación (P-08): aprobar, rechazar y la
   alerta de los 3 minutos, con el filtro "Con alerta". `/caja/cuentas` es Cuentas por cobrar (P-09).
   `/caja/disponibilidad` y `/caja/aprobados` todavía dicen "En construcción".
