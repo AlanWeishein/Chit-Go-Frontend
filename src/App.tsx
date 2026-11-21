@@ -37,7 +37,8 @@ import CategoriasYEtiquetas from './roles/admin/paginas/CategoriasYEtiquetas'
 import FormularioDePlato from './roles/admin/paginas/FormularioDePlato'
 import InicioDelAdmin from './roles/admin/paginas/InicioDelAdmin'
 import AdministradoresAdmin from './roles/admin/paginas/AdministradoresAdmin'
-import FormularioDeAdmin from './roles/admin/paginas/FormularioDeAdmin'
+import SoloPara from './roles/admin/componentes/SoloPara'
+import { LOS_DOS, SOLO_ADMIN, SOLO_GERENTE } from './roles/admin/secciones'
 
 export default function App() {
   return (
@@ -114,34 +115,35 @@ export default function App() {
           </RutaProtegida>
         }
       >
-        {/* Inicio inteligente: Gerente va a administradores, Admin común a menú */}
+        {/* El inicio de cada rol: el Gerente/Dueño va a Administradores y el Admin a Menú. Cada pantalla va en
+            SoloPara con los roles de su sección (roles/admin/secciones.ts): la que no es del rol manda al inicio. */}
         <Route index element={<InicioDelAdmin />} />
-        <Route path="dashboard" element={<Pendiente titulo="Dashboard" />} />
+        <Route path="dashboard" element={<SoloPara roles={SOLO_ADMIN}><Pendiente titulo="Dashboard" /></SoloPara>} />
         {/* La carta (P-14, HU-12). El alta y la edición (P-14b) y las categorías (P-14c) cuelgan de acá. */}
-        <Route path="menu" element={<CartaAdmin />} />
-        <Route path="menu/categorias" element={<CategoriasYEtiquetas />} />
-        <Route path="menu/nuevo" element={<FormularioDePlato />} />
-        <Route path="menu/:platoId" element={<FormularioDePlato />} />
-        <Route path="mesas" element={<Pendiente titulo="Mesas y QR" />} />
-        <Route path="empleados" element={<Pendiente titulo="Empleados y turnos" />} />
-        <Route path="reportes" element={<Pendiente titulo="Reportes" />} />
-        <Route path="auditoria" element={<Pendiente titulo="Auditoría" />} />
-        
-        {/* Rutas para la gestión de Administradores (HU-16, exclusivas para Gerente/Dueño) */}
-        <Route path="administradores" element={<AdministradoresAdmin />} />
-        <Route path="administradores/nuevo" element={<FormularioDeAdmin />} />
+        <Route path="menu" element={<SoloPara roles={SOLO_ADMIN}><CartaAdmin /></SoloPara>} />
+        <Route path="menu/categorias" element={<SoloPara roles={SOLO_ADMIN}><CategoriasYEtiquetas /></SoloPara>} />
+        <Route path="menu/nuevo" element={<SoloPara roles={SOLO_ADMIN}><FormularioDePlato /></SoloPara>} />
+        <Route path="menu/:platoId" element={<SoloPara roles={SOLO_ADMIN}><FormularioDePlato /></SoloPara>} />
+        <Route path="mesas" element={<SoloPara roles={SOLO_ADMIN}><Pendiente titulo="Mesas y QR" /></SoloPara>} />
+        <Route path="empleados" element={<SoloPara roles={SOLO_ADMIN}><Pendiente titulo="Empleados y turnos" /></SoloPara>} />
+        <Route path="reportes" element={<SoloPara roles={LOS_DOS}><Pendiente titulo="Reportes" /></SoloPara>} />
+        <Route path="auditoria" element={<SoloPara roles={LOS_DOS}><Pendiente titulo="Auditoría" /></SoloPara>} />
+        {/* Los Admins del local, con el alta en la misma pantalla (P-19, HU-16). Solo el Gerente/Dueño. */}
+        <Route path="administradores" element={<SoloPara roles={SOLO_GERENTE}><AdministradoresAdmin /></SoloPara>} />
 
         {/* Disponibilidad rápida del Admin (P-10c, HU-09). El padding extra lleva los 24 px de la pantalla de
             Caja a los 32 × 28 del Mockup del Admin. */}
         <Route
           path="disponibilidad"
           element={
-            <div className="min-h-full px-2 pt-1">
-              <DisponibilidadRapida subtitulo="Lo mismo que ve Caja (P-10): el Admin lo usa de respaldo cuando Caja no está" />
-            </div>
+            <SoloPara roles={SOLO_ADMIN}>
+              <div className="min-h-full px-2 pt-1">
+                <DisponibilidadRapida subtitulo="Lo mismo que ve Caja (P-10): el Admin lo usa de respaldo cuando Caja no está" />
+              </div>
+            </SoloPara>
           }
         />
-        <Route path="configuracion" element={<Pendiente titulo="Configuración" />} />
+        <Route path="configuracion" element={<SoloPara roles={SOLO_ADMIN}><Pendiente titulo="Configuración" /></SoloPara>} />
         <Route path="*" element={<InicioDelAdmin />} />
       </Route>
       <Route path="/plataforma/*" element={<Pendiente titulo="Super Admin" />} />

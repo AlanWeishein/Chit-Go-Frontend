@@ -4,30 +4,9 @@ import { useRef, useState, type MouseEvent } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useSesion } from '../../../compartido/sesion/SesionContext'
 import { nombreDelRol } from '../../../compartido/sesion/rutas'
-import iconoMenu from '../../../compartido/ui/iconos/book.svg'
-import iconoDisponibilidad from '../../../compartido/ui/iconos/box.svg'
-import iconoReportes from '../../../compartido/ui/iconos/chart.svg'
-import iconoConfiguracion from '../../../compartido/ui/iconos/clock-18.svg'
-import iconoMesas from '../../../compartido/ui/iconos/grid.svg'
-import iconoDashboard from '../../../compartido/ui/iconos/home.svg'
-import iconoAdministradores from '../../../compartido/ui/iconos/key.svg'
 import iconoSalir from '../../../compartido/ui/iconos/logout.svg'
-import iconoAuditoria from '../../../compartido/ui/iconos/shield.svg'
-import iconoEmpleados from '../../../compartido/ui/iconos/users.svg'
 import { ContextoGuardia, type Guardia } from '../guardiaDeSalida'
-
-// En el orden del Mockup.
-const seccionesAdmin = [
-  { a: '/admin/dashboard', texto: 'Dashboard', icono: iconoDashboard },
-  { a: '/admin/menu', texto: 'Menú', icono: iconoMenu },
-  { a: '/admin/mesas', texto: 'Mesas y QR', icono: iconoMesas },
-  { a: '/admin/empleados', texto: 'Empleados y turnos', icono: iconoEmpleados },
-  { a: '/admin/reportes', texto: 'Reportes', icono: iconoReportes },
-  { a: '/admin/auditoria', texto: 'Auditoría', icono: iconoAuditoria },
-  { a: '/admin/administradores', texto: 'Administradores', icono: iconoAdministradores },
-  { a: '/admin/disponibilidad', texto: 'Disponibilidad rápida', icono: iconoDisponibilidad },
-  { a: '/admin/configuracion', texto: 'Configuración', icono: iconoConfiguracion },
-]
+import { seccionesAdmin } from '../secciones'
 
 const foco = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primario'
 
@@ -76,7 +55,7 @@ export default function MarcoAdmin() {
         {sesion.local && <p className="truncate pl-3 text-[13px] leading-[normal]">{sesion.local.nombre}</p>}
 
         <nav aria-label="Secciones del Admin" className="mt-[18px] flex flex-col gap-1.5">
-          {seccionesAdmin.map((s) => (
+          {seccionesAdmin.filter((s) => s.roles.includes(sesion.rol)).map((s) => (
             <NavLink
               key={s.a}
               to={s.a}
