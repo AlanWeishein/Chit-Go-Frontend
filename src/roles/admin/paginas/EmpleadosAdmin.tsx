@@ -3,10 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   darDeBajaEmpleado,
   listarEmpleados,
-  type DiaSemana,
   type EmpleadoResumen,
-  type RolDeEmpleado,
-  type Turno,
 } from '../../../compartido/api/empleados'
 import { statusDe, textoDelError } from '../../../compartido/api/errores'
 import type { Pagina } from '../../../compartido/api/paginacion'
@@ -21,6 +18,7 @@ import iconoEditar from '../../../compartido/ui/iconos/pencil.svg'
 import iconoNuevo from '../../../compartido/ui/iconos/plus-blanco.svg'
 import AvisoDeFallo from '../../acceso/componentes/AvisoDeFallo'
 import ConfirmarBorrado from '../componentes/ConfirmarBorrado'
+import { DIAS, ROL, horaCorta, resumenDeTurnos } from '../turnos'
 
 // Empleados y turnos (P-16, HU-14). Solo el Admin. El back pagina (el profe carga muchos con un INSERT) y trae solo
 // Mozo, Caja y Cocina; los dados de baja salen marcados y quedan de solo lectura.
@@ -28,58 +26,10 @@ import ConfirmarBorrado from '../componentes/ConfirmarBorrado'
 // El size que el back usa si no viene.
 const POR_PAGINA = 20
 
-const ROL: Record<RolDeEmpleado, string> = { MOZO: 'Mozo', CAJA: 'Caja', COCINA: 'Cocina' }
-
-const DIAS: { dia: DiaSemana; corto: string; letra: string }[] = [
-  { dia: 'LUN', corto: 'Lun', letra: 'L' },
-  { dia: 'MAR', corto: 'Mar', letra: 'M' },
-  { dia: 'MIE', corto: 'Mié', letra: 'X' },
-  { dia: 'JUE', corto: 'Jue', letra: 'J' },
-  { dia: 'VIE', corto: 'Vie', letra: 'V' },
-  { dia: 'SAB', corto: 'Sáb', letra: 'S' },
-  { dia: 'DOM', corto: 'Dom', letra: 'D' },
-]
-const ORDEN = new Map(DIAS.map((d, i) => [d.dia, i]))
-
 const rotulo = 'text-[11px] leading-[normal] font-semibold tracking-[0.66px] text-secundario uppercase'
 const foco = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primario'
 const botonContorno = `flex h-11 items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-primario px-[18px] text-[15px] font-semibold text-primario disabled:opacity-[.38] ${foco}`
 const botonDeFila = `inline-flex h-11 items-center gap-2 rounded-[14px] text-[15px] font-semibold whitespace-nowrap underline ${foco}`
-
-// "19:00:00" → "19:00".
-function hora(h: string): string {
-  return h.slice(0, 5)
-}
-
-// Para la grilla, como el Mockup: "19:00:00" → "19", y con minutos "18:30".
-function horaCorta(h: string): string {
-  return h.slice(3, 5) === '00' ? h.slice(0, 2) : h.slice(0, 5)
-}
-
-// Tres o más días seguidos van como rango ("Lun a Vie"); si no, en lista ("Lun, Mié y Vie").
-function textoDeDias(indices: number[]): string {
-  if (indices.length === 7) return 'Todos los días'
-  const seguidos = indices.every((d, i) => i === 0 || d === indices[i - 1] + 1)
-  if (seguidos && indices.length >= 3) return `${DIAS[indices[0]].corto} a ${DIAS[indices[indices.length - 1]].corto}`
-  const nombres = indices.map((i) => DIAS[i].corto)
-  return nombres.length === 1 ? nombres[0] : `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1]}`
-}
-
-// Junta los días con las mismas horas: una línea por horario ("Lun a Vie · 18:00–02:00"). Un turno que cruza la
-// medianoche va en el día en que empieza, como lo guarda el back.
-function resumenDeTurnos(turnos: Turno[]): string[] {
-  const grupos = new Map<string, { inicio: string; fin: string; dias: Set<number> }>()
-  for (const t of turnos) {
-    const clave = `${t.horaInicio}|${t.horaFin}`
-    const grupo = grupos.get(clave) ?? { inicio: t.horaInicio, fin: t.horaFin, dias: new Set<number>() }
-    grupo.dias.add(ORDEN.get(t.dia) ?? 0)
-    grupos.set(clave, grupo)
-  }
-  return [...grupos.values()]
-    .map((g) => ({ ...g, indices: [...g.dias].sort((a, b) => a - b) }))
-    .sort((a, b) => a.indices[0] - b.indices[0] || a.inicio.localeCompare(b.inicio))
-    .map((g) => `${textoDeDias(g.indices)} · ${hora(g.inicio)}–${hora(g.fin)}`)
-}
 
 // Dado de baja va primero, después bloqueado y después ausente. El back no manda el género: "Activo", "Ausente".
 function Estado({ empleado }: { empleado: EmpleadoResumen }) {
