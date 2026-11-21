@@ -1,11 +1,117 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { borrarEmpleado, listarEmpleados, type Empleado, type RolDeEmpleado } from '../../../compartido/api/empleados'
+import {
+  darDeBajaEmpleado,
+  listarEmpleados,
+  type EmpleadoResumen,
+} from '../../../compartido/api/empleados'
 import { statusDe, textoDelError } from '../../../compartido/api/errores'
-import { normalizar } from '../../../compartido/ui/normalizar'
+import type { Pagina } from '../../../compartido/api/paginacion'
+import iconoAnterior from '../../../compartido/ui/iconos/arrow-l-primario.svg'
+import iconoBaja from '../../../compartido/ui/iconos/ban-20.svg'
+import iconoDadoDeBaja from '../../../compartido/ui/iconos/ban.svg'
+import iconoActivo from '../../../compartido/ui/iconos/check-14.svg'
+import iconoSiguiente from '../../../compartido/ui/iconos/chevron-r-primario.svg'
+import iconoAusente from '../../../compartido/ui/iconos/clock.svg'
+import iconoBloqueado from '../../../compartido/ui/iconos/lock.svg'
+import iconoEditar from '../../../compartido/ui/iconos/pencil.svg'
+import iconoNuevo from '../../../compartido/ui/iconos/plus-blanco.svg'
+import AvisoDeFallo from '../../acceso/componentes/AvisoDeFallo'
 import ConfirmarBorrado from '../componentes/ConfirmarBorrado'
+import { DIAS, ROL, horaCorta, resumenDeTurnos } from '../turnos'
 
-const ROL: Record<RolDeEmpleado, string> = { MOZO: 'Mozo', CAJA: 'Caja', COCINA: 'Cocina' }
+// Empleados y turnos (P-16, HU-14). Solo el Admin. El back pagina (el profe carga muchos con un INSERT) y trae solo
+// Mozo, Caja y Cocina; los dados de baja salen marcados y quedan de solo lectura.
+
+// El size que el back usa si no viene.
+const POR_PAGINA = 20
+
+const rotulo = 'text-[11px] leading-[normal] font-semibold tracking-[0.66px] text-secundario uppercase'
+const foco = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primario'
+const botonContorno = `flex h-11 items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-primario px-[18px] text-[15px] font-semibold text-primario disabled:opacity-[.38] ${foco}`
+const botonDeFila = `inline-flex h-11 items-center gap-2 rounded-[14px] text-[15px] font-semibold whitespace-nowrap underline ${foco}`
+
+// Dado de baja va primero, después bloqueado y después ausente. El back no manda el género: "Activo", "Ausente".
+function Estado({ empleado }: { empleado: EmpleadoResumen }) {
+  const [icono, texto] = !empleado.activo
+    ? [iconoDadoDeBaja, 'Dado de baja']
+    : empleado.bloqueado
+      ? [iconoBloqueado, 'Bloqueado']
+      : empleado.ausenciaVigente
+        ? [iconoAusente, 'Ausente']
+        : [iconoActivo, 'Activo']
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md bg-linea py-1 pr-[9px] pl-[7px] text-xs leading-[normal] font-medium whitespace-nowrap">
+      <img src={icono} alt="" width={14} height={14} />
+      {texto}
+    </span>
+  )
+}
+
+// La grilla de la semana con los turnos de los empleados de la página que se ve (sin los dados de baja ni los que no
+// tienen turnos). Es la plantilla: vale igual para todas las semanas.
+function GrillaDeTurnos({ empleados }: { empleados: EmpleadoResumen[] }) {
+  const conTurnos = empleados.filter((e) => e.activo && e.turnos.length > 0)
+  return (
+    <section aria-labelledby="titulo-grilla" className="flex flex-col gap-3">
+      <h2 id="titulo-grilla" className="text-base leading-[normal] font-semibold">
+        Turnos de la semana
+      </h2>
+      {conTurnos.length === 0 ? (
+        <p className="text-[13px] text-secundario">Nadie de esta página tiene turnos cargados.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] table-fixed border-collapse text-left text-[13px] leading-[normal]">
+            <thead>
+              <tr className={`h-[34px] border-b border-linea ${rotulo}`}>
+                <th className="w-[150px] px-2.5 font-semibold">Empleado</th>
+                {DIAS.map((d) => (
+                  <th key={d.dia} className="px-2.5 font-semibold">
+                    <abbr title={d.corto} className="no-underline">
+                      {d.letra}
+                    </abbr>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {conTurnos.map((e) => (
+                <tr key={e.id} className="h-[42px] not-first:border-t not-first:border-linea">
+                  <td className="truncate px-2.5" title={e.nombre}>
+                    {e.nombre}
+                  </td>
+                  {DIAS.map((d) => {
+                    const delDia = e.turnos
+                      .filter((t) => t.dia === d.dia)
+                      .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio))
+                    return (
+                      <td key={d.dia} className="px-2.5 py-1.5">
+                        {delDia.length === 0 ? (
+                          <span className="text-secundario">—</span>
+                        ) : (
+                          <div className="flex flex-col gap-1">
+                            {delDia.map((t) => (
+                              <span
+                                key={t.horaInicio}
+                                className="flex h-[30px] items-center justify-center rounded-lg bg-linea text-xs font-medium whitespace-nowrap tabular-nums"
+                              >
+                                {horaCorta(t.horaInicio)}–{horaCorta(t.horaFin)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  )
+}
 
 // `vez` cambia siempre: dos avisos iguales seguidos vuelven a contar los 5 segundos.
 interface Aviso {
@@ -18,46 +124,47 @@ export default function EmpleadosAdmin() {
   const location = useLocation()
   const navigate = useNavigate()
 
-  const [empleados, setEmpleados] = useState<Empleado[] | null>(null)
-  const [errorLista, setErrorLista] = useState<string | null>(null)
-  const [busqueda, setBusqueda] = useState('')
+  const [page, setPage] = useState(0)
+  const [intento, setIntento] = useState(0) // sube para volver a pedir la misma página
+  const [datos, setDatos] = useState<Pagina<EmpleadoResumen> | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [claveListo, setClaveListo] = useState<string | null>(null)
   const [aviso, setAviso] = useState<Aviso | null>(() => {
     const texto = (location.state as { aviso?: string } | null)?.aviso
     return texto ? { texto, error: false, vez: 0 } : null
   })
-  const [aBorrar, setABorrar] = useState<Empleado | null>(null)
-  const [borrando, setBorrando] = useState(false)
+  const [aDarDeBaja, setADarDeBaja] = useState<EmpleadoResumen | null>(null)
+  const [enviando, setEnviando] = useState(false)
 
   const ultimoPedido = useRef(0) // vale solo la última respuesta
-  const hayDatos = useRef(false)
   const enviandoRef = useRef(false) // el estado llega un render tarde: la ref corta el doble toque
   const vez = useRef(0)
+
+  const clave = `${page}|${intento}`
+  const cargando = claveListo !== clave
 
   function avisar(texto: string, error = false) {
     setAviso({ texto, error, vez: ++vez.current })
   }
 
-  function recargar() {
+  useEffect(() => {
     const numero = ++ultimoPedido.current
-    listarEmpleados()
-      .then((lista) => {
+    listarEmpleados(page, POR_PAGINA)
+      .then((pagina) => {
         if (numero !== ultimoPedido.current) return
-        hayDatos.current = true
-        setEmpleados(lista)
-        setErrorLista(null)
+        setDatos(pagina)
+        setError(null)
+        setClaveListo(clave)
       })
       .catch((err) => {
         if (numero !== ultimoPedido.current) return
-        // Con la lista en pantalla, el fallo va al aviso; la pantalla de error es solo para la primera carga.
-        if (hayDatos.current) avisar(textoDelError(err), true)
-        else setErrorLista(textoDelError(err))
+        setError(textoDelError(err))
+        setClaveListo(clave)
       })
-  }
+  }, [clave, page])
 
-  // Al entrar: pide la lista y limpia el aviso que vino en el state de la navegación, para que no reaparezca al
-  // recargar la página.
+  // El aviso que vino en el state de la navegación (del alta o la edición) se limpia, para que no vuelva al recargar.
   useEffect(() => {
-    recargar()
     if ((location.state as { aviso?: string } | null)?.aviso) {
       navigate(location.pathname, { replace: true, state: null })
     }
@@ -71,132 +178,181 @@ export default function EmpleadosAdmin() {
     return () => clearTimeout(id)
   }, [aviso])
 
-  async function confirmarBorrado() {
-    if (!aBorrar || enviandoRef.current) return
+  async function confirmarBaja() {
+    if (!aDarDeBaja || enviandoRef.current) return
     enviandoRef.current = true
-    setBorrando(true)
-    const { id, nombre } = aBorrar
+    setEnviando(true)
+    const { id, nombre } = aDarDeBaja
     try {
-      await borrarEmpleado(id)
-      setABorrar(null)
-      avisar(`Se borró a ${nombre}.`)
-      recargar()
+      await darDeBajaEmpleado(id)
+      avisar(`Se dio de baja a ${nombre}.`)
+      setIntento((n) => n + 1) // sigue en la misma página, ahora como dado de baja
     } catch (err) {
-      // Como en el resto de las pantallas: el diálogo se cierra y el texto del back va arriba.
-      setABorrar(null)
       avisar(textoDelError(err), true)
       const status = statusDe(err)
-      if (status === 404 || status === 409) recargar() // la lista que se ve puede estar vieja
+      if (status === 404 || status === 409) setIntento((n) => n + 1) // la lista que se ve puede estar vieja
     } finally {
+      setADarDeBaja(null)
       enviandoRef.current = false
-      setBorrando(false)
+      setEnviando(false)
     }
   }
 
-  const texto = normalizar(busqueda.trim())
-  const todos = empleados ?? []
-  const visibles = todos.filter((e) => texto === '' || normalizar(e.nombre).includes(texto))
+  const filas = datos?.contenido ?? []
+  const total = datos?.totalElementos ?? 0
+  const primero = datos && filas.length > 0 ? datos.page * datos.size + 1 : 0
+  const ultimo = datos ? datos.page * datos.size + filas.length : 0
 
   return (
-    <section className="min-h-dvh bg-fondo p-8 text-texto">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-[Fraunces] text-3xl font-semibold">Empleados y turnos</h1>
-          <p className="mt-1 text-sm text-secundario">Quién entra al sistema, con qué rol y en qué turno.</p>
+    <section className="flex min-h-full flex-col gap-[18px] bg-fondo px-8 pt-7 pb-6 font-inter text-texto">
+      <header className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-0.5 leading-[normal]">
+          <h1 className="titulo text-[25px]">Empleados y turnos</h1>
+          <p className="text-[13px] text-secundario">
+            {datos ? `${total} ${total === 1 ? 'empleado' : 'empleados'} · ` : ''}el PIN identifica a cada uno en la
+            auditoría
+          </p>
         </div>
-        <div className="flex items-center gap-3">
-          <input
-            type="search"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar empleado"
-            aria-label="Buscar empleado"
-            className="min-h-11 w-64 rounded-xl border border-linea bg-tarjeta px-4"
-          />
-          <Link
-            to="/admin/empleados/nuevo"
-            className="inline-flex min-h-11 items-center rounded-xl bg-primario px-5 font-semibold whitespace-nowrap text-texto-boton"
-          >
-            + Nuevo empleado
-          </Link>
-        </div>
-      </div>
-
-      {aviso && (
-        <p
-          key={aviso.vez}
-          role={aviso.error ? 'alert' : 'status'}
-          onClick={() => setAviso(null)}
-          className="mt-4 cursor-pointer rounded-xl border-2 border-primario bg-tarjeta p-3 font-semibold"
+        <Link
+          to="/admin/empleados/nuevo"
+          className={`flex h-11 shrink-0 items-center justify-center gap-2 rounded-[14px] bg-primario px-[18px] text-[15px] font-semibold whitespace-nowrap text-texto-boton ${foco}`}
         >
-          {aviso.error && '⚠ '}
-          {aviso.texto}
+          <img src={iconoNuevo} alt="" width={20} height={20} />
+          Nuevo empleado
+        </Link>
+      </header>
+
+      {aviso &&
+        (aviso.error ? (
+          <AvisoDeFallo key={aviso.vez}>{aviso.texto}</AvisoDeFallo>
+        ) : (
+          <p
+            key={aviso.vez}
+            role="status"
+            className="rounded-[14px] border-[1.5px] border-primario bg-tarjeta p-3 text-[15px] font-semibold"
+          >
+            {aviso.texto}
+          </p>
+        ))}
+
+      {error && datos !== null && (
+        <p role="alert" className="text-[13px] text-secundario">
+          No se pudo actualizar la lista. {error}{' '}
+          <button type="button" onClick={() => setIntento((n) => n + 1)} className={`inline-flex min-h-11 items-center font-semibold underline ${foco}`}>
+            Probá de nuevo
+          </button>
         </p>
       )}
 
-      {empleados === null && !errorLista ? (
-        <p className="py-16 text-center text-secundario">Cargando los empleados…</p>
-      ) : empleados === null ? (
-        <div className="py-16 text-center">
-          <p>{errorLista}</p>
-          <button
-            type="button"
-            onClick={recargar}
-            className="mt-4 min-h-11 rounded-xl border-2 border-primario px-5 font-semibold text-primario"
-          >
+      {datos === null && error ? (
+        <div className="py-10 text-center">
+          <p role="alert">{error}</p>
+          <button type="button" onClick={() => setIntento((n) => n + 1)} className={`mt-4 ${botonContorno} mx-auto`}>
             Probá de nuevo
           </button>
         </div>
-      ) : todos.length === 0 ? (
-        <p className="py-16 text-center text-secundario">Todavía no hay empleados.</p>
-      ) : visibles.length === 0 ? (
-        <p className="py-16 text-center text-secundario">No hay empleados con ese nombre.</p>
+      ) : datos === null ? (
+        <p className="py-10 text-center text-secundario">Cargando los empleados…</p>
+      ) : filas.length === 0 ? (
+        <p className="py-10 text-center text-secundario">Todavía no hay empleados.</p>
       ) : (
-        <table className="mt-6 w-full text-left">
-          <thead>
-            <tr className="border-b border-linea text-xs tracking-wide text-secundario">
-              <th className="py-3 font-semibold">NOMBRE</th>
-              <th className="py-3 font-semibold">ROL</th>
-              <th className="py-3 font-semibold">TURNO</th>
-              <th className="py-3 text-right font-semibold">ACCIONES</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visibles.map((e) => (
-              <tr key={e.id} className="border-b border-linea">
-                <td className="py-2 font-medium">{e.nombre}</td>
-                <td className="py-2">
-                  <span className="rounded-md bg-suave px-2 py-1 text-xs">{ROL[e.rol] ?? e.rol}</span>
-                </td>
-                <td className="py-2 text-sm tabular-nums">{e.turno || '—'}</td>
-                <td className="py-2 text-right">
-                  <Link
-                    to={`/admin/empleados/${e.id}`}
-                    className="inline-flex min-h-11 items-center px-3 font-semibold text-primario underline"
-                  >
-                    Editar
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => setABorrar(e)}
-                    className="min-h-11 px-3 font-semibold text-secundario underline"
-                  >
-                    Borrar
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <>
+          <div aria-busy={cargando} className={`overflow-x-auto ${cargando ? 'opacity-60' : ''}`}>
+            <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-[13px] leading-[normal]">
+              <thead>
+                <tr className={`h-[34px] border-b border-linea ${rotulo}`}>
+                  <th className="px-2.5 font-semibold">Empleado</th>
+                  <th className="w-[100px] px-2.5 font-semibold">Rol</th>
+                  <th className="w-[230px] px-2.5 font-semibold">Turno</th>
+                  <th className="w-[150px] px-2.5 font-semibold">Estado</th>
+                  <th className="w-[230px] px-2.5">
+                    <span className="sr-only">Acciones</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filas.map((e) => {
+                  const turno = resumenDeTurnos(e.turnos)
+                  return (
+                    <tr key={e.id} className="h-[52px] not-first:border-t not-first:border-linea">
+                      <td className={`truncate px-2.5 ${e.activo ? '' : 'text-secundario'}`} title={e.nombre}>
+                        {e.nombre}
+                      </td>
+                      <td className="px-2.5">
+                        <span className="rounded-md bg-linea px-[9px] py-1 text-xs font-medium">{ROL[e.rol] ?? e.rol}</span>
+                      </td>
+                      <td className={`px-2.5 py-2 tabular-nums ${e.activo ? '' : 'text-secundario'}`}>
+                        {turno.length === 0 ? (
+                          <span className="text-secundario">—</span>
+                        ) : (
+                          turno.map((linea) => (
+                            <span key={linea} className="block whitespace-nowrap">
+                              {linea}
+                            </span>
+                          ))
+                        )}
+                      </td>
+                      <td className="px-2.5">
+                        <Estado empleado={e} />
+                      </td>
+                      <td className="px-2.5">
+                        {e.activo && (
+                          <div className="flex items-center justify-end gap-5">
+                            <Link to={`/admin/empleados/${e.id}`} aria-label={`Editar a ${e.nombre}`} className={botonDeFila}>
+                              <img src={iconoEditar} alt="" width={20} height={20} />
+                              Editar
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => setADarDeBaja(e)}
+                              aria-label={`Dar de baja a ${e.nombre}`}
+                              className={botonDeFila}
+                            >
+                              <img src={iconoBaja} alt="" width={20} height={20} />
+                              Dar de baja
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-[13px] text-secundario tabular-nums">
+              Mostrando {primero} a {ultimo} de {total}
+            </p>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0 || cargando} className={botonContorno}>
+                <img src={iconoAnterior} alt="" width={20} height={20} />
+                Anterior
+              </button>
+              <button
+                type="button"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={page >= datos.totalPaginas - 1 || cargando}
+                className={botonContorno}
+              >
+                <img src={iconoSiguiente} alt="" width={20} height={20} />
+                Siguiente
+              </button>
+            </div>
+          </div>
+
+          <GrillaDeTurnos empleados={filas} />
+        </>
       )}
 
-      {aBorrar && (
+      {aDarDeBaja && (
         <ConfirmarBorrado
-          key={aBorrar.id}
-          nombre={aBorrar.nombre}
-          borrando={borrando}
-          alVolver={() => setABorrar(null)}
-          alConfirmar={confirmarBorrado}
+          key={aDarDeBaja.id}
+          nombre={aDarDeBaja.nombre}
+          borrando={enviando}
+          alVolver={() => setADarDeBaja(null)}
+          alConfirmar={confirmarBaja}
         />
       )}
     </section>
