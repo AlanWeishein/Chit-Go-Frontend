@@ -1,390 +1,334 @@
-import React, { useEffect, useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
-import { MesaAdmin, GuardarMesaPayload } from '../../../compartido/tipos/mesas';
-import {
-  obtenerMesasAdmin,
-  crearMesaAdmin,
-  actualizarMesaAdmin,
-  cambiarHabilitacionMesa,
-  regenerarQrMesa,
-} from '../../../compartido/api/mesas';
+import { useEffect, useRef, useState } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
+import { cambiarInhabilitada, darDeBajaMesa, listarMesas } from '../../../compartido/api/mesas'
+import { statusDe, textoDelError } from '../../../compartido/api/errores'
+import { useSesion } from '../../../compartido/sesion/SesionContext'
+import type { MesaAdmin } from '../../../compartido/tipos/mesas'
+import iconoInhabilitada from '../../../compartido/ui/iconos/ban-blanco-14.svg'
+import iconoInfo from '../../../compartido/ui/iconos/info.svg'
+import iconoEditar from '../../../compartido/ui/iconos/pencil.svg'
+import iconoAgregar from '../../../compartido/ui/iconos/plus-28.svg'
+import iconoNueva from '../../../compartido/ui/iconos/plus-blanco.svg'
+import iconoImprimirApagado from '../../../compartido/ui/iconos/printer.svg'
+import iconoImprimir from '../../../compartido/ui/iconos/printer-primario.svg'
+import AvisoDeFallo from '../../acceso/componentes/AvisoDeFallo'
+import DialogoDeConfirmacion from '../componentes/DialogoDeConfirmacion'
+import FormularioDeMesa from '../componentes/FormularioDeMesa'
+import InhabilitarMesa from '../componentes/InhabilitarMesa'
+import InterruptorDeMesa from '../componentes/InterruptorDeMesa'
+import QrImpreso, { direccionDeLaMesa } from '../componentes/QrImpreso'
 
-export const GestionMesasPage: React.FC = () => {
-  const [mesas, setMesas] = useState<MesaAdmin[]>([]);
-  const [cargando, setCargando] = useState<boolean>(true);
-  const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
+// `vez` cambia siempre: dos avisos iguales seguidos vuelven a contar los 5 segundos.
+interface Aviso {
+  texto: string
+  error: boolean
+  vez: number
+}
 
-  // Estado Modal Alta / Edición de Mesa
-  const [modalFormAbierto, setModalFormAbierto] = useState<boolean>(false);
-  const [mesaEditando, setMesaEditando] = useState<MesaAdmin | null>(null);
-  const [formMesa, setFormMesa] = useState<GuardarMesaPayload>({
-    numero: '',
-    capacidad: 4,
-  });
-  const [guardandoMesa, setGuardandoMesa] = useState<boolean>(false);
+const foco = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primario'
+const botonContorno = `flex h-11 items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-primario px-[18px] text-[15px] font-semibold text-primario disabled:opacity-[.38] ${foco}`
 
-  // Estado Modal QR / Impresión
-  const [mesaQrSeleccionada, setMesaQrSeleccionada] = useState<MesaAdmin | null>(null);
-  const [regenerandoQr, setRegenerandoQr] = useState<boolean>(false);
+// Con localhost el QR apunta a la compu de quien lo abrió y el celular no llega (ver la ST-31).
+const esLocal = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
 
-  const cargarMesas = async () => {
-    setCargando(true);
-    setErrorGeneral(null);
-    try {
-      const data = await obtenerMesasAdmin();
-      setMesas(data);
-    } catch (err: any) {
-      setErrorGeneral(err?.detail || 'No se pudieron cargar las mesas del local.');
-    } finally {
-      setCargando(false);
-    }
-  };
+function bajada(mesas: MesaAdmin[]): string {
+  const total = mesas.length === 1 ? '1 mesa' : `${mesas.length} mesas`
+  const inhabilitadas = mesas.filter((m) => m.inhabilitada).length
+  const partes = [total]
+  if (inhabilitadas > 0) partes.push(inhabilitadas === 1 ? '1 inhabilitada' : `${inhabilitadas} inhabilitadas`)
+  partes.push('un QR imprimible por mesa (codifica un token, no el número)')
+  return partes.join(' · ')
+}
+
+// P-15, las mesas del local y sus QR (HU-13, nodo 2009:6968). La lista es la completa (todas las páginas de
+// GET /admin/mesas) y el back manda solo las activas: una mesa dada de baja sale de la lista al recargar.
+// Imprimir monta P-38 (QrImpreso) fuera de la pantalla y llama a window.print(): al imprimir sale solo eso.
+export default function GestionMesasPage() {
+  const { sesion } = useSesion()
+  const [mesas, setMesas] = useState<MesaAdmin[] | null>(null)
+  const [errorLista, setErrorLista] = useState<string | null>(null)
+  const [aviso, setAviso] = useState<Aviso | null>(null)
+  const [formulario, setFormulario] = useState<{ mesa: MesaAdmin | null } | null>(null)
+  const [aInhabilitar, setAInhabilitar] = useState<MesaAdmin | null>(null)
+  const [aDarDeBaja, setADarDeBaja] = useState<MesaAdmin | null>(null)
+  const [enviandoId, setEnviandoId] = useState<number | null>(null)
+  const [aImprimir, setAImprimir] = useState<MesaAdmin[] | null>(null)
+
+  const ultimoPedido = useRef(0) // vale solo la última respuesta
+  const hayDatos = useRef(false)
+  const enviandoRef = useRef(false) // el estado llega un render tarde: la ref corta el doble toque
+  const vez = useRef(0)
+
+  function avisar(texto: string, error = false) {
+    setAviso({ texto, error, vez: ++vez.current })
+  }
+
+  function cargar() {
+    const numero = ++ultimoPedido.current
+    listarMesas()
+      .then((lista) => {
+        if (numero !== ultimoPedido.current) return
+        hayDatos.current = true
+        setMesas(lista)
+        setErrorLista(null)
+      })
+      .catch((err) => {
+        if (numero !== ultimoPedido.current) return
+        // Con la lista en pantalla, el fallo va al aviso y la lista se queda.
+        if (hayDatos.current) avisar(textoDelError(err), true)
+        else setErrorLista(textoDelError(err))
+      })
+  }
 
   useEffect(() => {
-    cargarMesas();
-  }, []);
+    cargar()
+  }, [])
 
-  // Abrir modal para crear o editar
-  const handleAbrirModalForm = (mesa?: MesaAdmin) => {
-    if (mesa) {
-      setMesaEditando(mesa);
-      setFormMesa({
-        numero: mesa.numero,
-        capacidad: mesa.capacidad ?? 4,
-      });
+  // El aviso se va solo a los 5 segundos.
+  useEffect(() => {
+    if (!aviso) return
+    const id = setTimeout(() => setAviso(null), 5000)
+    return () => clearTimeout(id)
+  }, [aviso])
+
+  // Con las hojas ya montadas, se imprime. Al cerrar la vista de impresión se desmontan.
+  useEffect(() => {
+    if (!aImprimir) return
+    const terminar = () => setAImprimir(null)
+    window.addEventListener('afterprint', terminar, { once: true })
+    window.print()
+    return () => window.removeEventListener('afterprint', terminar)
+  }, [aImprimir])
+
+  async function accionar(mesa: MesaAdmin, llamada: () => Promise<unknown>, textoOk: string) {
+    if (enviandoRef.current) return
+    enviandoRef.current = true
+    setEnviandoId(mesa.id)
+    try {
+      await llamada()
+      avisar(textoOk)
+      cargar()
+    } catch (err) {
+      avisar(textoDelError(err), true)
+      const status = statusDe(err)
+      if (status === 404 || status === 409) cargar() // la lista que se ve puede estar vieja
+    } finally {
+      enviandoRef.current = false
+      setEnviandoId(null)
+      setADarDeBaja(null)
+    }
+  }
+
+  function alTocarInterruptor(mesa: MesaAdmin) {
+    if (mesa.inhabilitada) {
+      accionar(mesa, () => cambiarInhabilitada(mesa.id, false, null), `Se habilitó la Mesa ${mesa.numero}.`)
     } else {
-      setMesaEditando(null);
-      setFormMesa({
-        numero: '',
-        capacidad: 4,
-      });
+      setAInhabilitar(mesa)
     }
-    setModalFormAbierto(true);
-  };
+  }
 
-  const handleGuardarMesa = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formMesa.numero.trim()) {
-      alert('Ingresá un número o identificador para la mesa.');
-      return;
-    }
-
-    setGuardandoMesa(true);
-    try {
-      const payload: GuardarMesaPayload = {
-        numero: formMesa.numero.trim(),
-        capacidad: formMesa.capacidad && formMesa.capacidad > 0 ? formMesa.capacidad : undefined,
-      };
-
-      if (mesaEditando) {
-        await actualizarMesaAdmin(mesaEditando.id, payload);
-      } else {
-        await crearMesaAdmin(payload);
-      }
-      setModalFormAbierto(false);
-      await cargarMesas();
-    } catch (err: any) {
-      alert(err?.detail || 'No se pudo guardar la mesa.');
-    } finally {
-      setGuardandoMesa(false);
-    }
-  };
-
-  // Habilitar / Inhabilitar mesa
-  const handleToggleHabilitacion = async (mesa: MesaAdmin) => {
-    const nuevoEstado = !mesa.habilitada;
-    const mensajeConfirm = nuevoEstado
-      ? `¿Habilitar la Mesa ${mesa.numero} para recibir clientes?`
-      : `¿Inhabilitar la Mesa ${mesa.numero}? Los clientes no podrán iniciar sesión escaneando su QR.`;
-
-    if (!window.confirm(mensajeConfirm)) return;
-
-    try {
-      await cambiarHabilitacionMesa(mesa.id, nuevoEstado);
-      await cargarMesas();
-    } catch (err: any) {
-      alert(err?.detail || 'No se pudo cambiar el estado de la mesa.');
-    }
-  };
-
-  // Regenerar Token QR
-  const handleRegenerarQr = async () => {
-    if (!mesaQrSeleccionada) return;
-    if (
-      !window.confirm(
-        `¿Regenerar el código QR de la Mesa ${mesaQrSeleccionada.numero}? El QR impreso actualmente dejará de funcionar de inmediato.`
-      )
-    ) {
-      return;
-    }
-
-    setRegenerandoQr(true);
-    try {
-      const mesaActualizada = await regenerarQrMesa(mesaQrSeleccionada.id);
-      setMesaQrSeleccionada(mesaActualizada);
-      setMesas((prev) =>
-        prev.map((m) => (m.id === mesaActualizada.id ? mesaActualizada : m))
-      );
-    } catch (err: any) {
-      alert(err?.detail || 'No se pudo regenerar el token QR.');
-    } finally {
-      setRegenerandoQr(false);
-    }
-  };
-
-  const construirUrlQr = (tokenQr: string) => {
-    return `${window.location.origin}/mesa/${tokenQr}`;
-  };
-
-  const handleImprimirQr = () => {
-    window.print();
-  };
+  const todas = mesas ?? []
 
   return (
-    <div className="min-h-screen bg-fondo p-6 font-sans text-texto">
-      {/* Contenido principal (se oculta al imprimir si hay un modal QR abierto) */}
-      <div className={mesaQrSeleccionada ? 'print:hidden' : ''}>
-        {/* Encabezado */}
-        <div className="mx-auto max-w-5xl mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold font-serif text-primario">
-              Gestión de Mesas y QR (P-15)
-            </h1>
-            <p className="text-sm text-secundario">
-              Administración de mesas del salón, estado de habilitación y códigos QR de acceso.
-            </p>
+    <>
+      <section className="flex min-h-full flex-col gap-[18px] bg-fondo px-8 pt-7 pb-6 font-inter text-texto print:hidden">
+        <header className="flex min-h-11 items-center justify-between gap-4">
+          <div className="flex min-w-0 flex-col gap-0.5 leading-[normal]">
+            <h1 className="titulo text-[25px]">Mesas y QR</h1>
+            {mesas && <p className="text-[13px] text-secundario">{bajada(todas)}</p>}
           </div>
+          <div className="flex shrink-0 gap-2.5">
+            <button
+              type="button"
+              onClick={() => setAImprimir(todas)}
+              disabled={todas.length === 0}
+              className={botonContorno}
+            >
+              <img src={iconoImprimir} alt="" width={20} height={20} />
+              Imprimir todos
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormulario({ mesa: null })}
+              className={`flex h-11 items-center justify-center gap-2 rounded-[14px] bg-primario px-[18px] text-[15px] font-semibold text-texto-boton ${foco}`}
+            >
+              <img src={iconoNueva} alt="" width={20} height={20} />
+              Nueva mesa
+            </button>
+          </div>
+        </header>
 
-          <button
-            type="button"
-            onClick={() => handleAbrirModalForm()}
-            className="rounded-xl bg-primario px-4 py-2.5 text-sm font-semibold text-texto-boton shadow-sm hover:bg-[#38241d] transition-colors self-start sm:self-auto"
-          >
-            + Nueva Mesa
-          </button>
-        </div>
-
-        {errorGeneral && (
-          <div className="mx-auto max-w-5xl mb-4 rounded-xl border border-red-200 bg-red-100 p-4 text-sm font-semibold text-red-800">
-            {errorGeneral}
+        {esLocal && (
+          <div className="flex items-start gap-3 rounded-[14px] bg-linea p-[14px]">
+            <img src={iconoInfo} alt="" width={20} height={20} className="shrink-0" />
+            <p className="text-[13px] leading-[normal]">
+              Abriste el panel por localhost, así que los QR apuntan a esta compu y el celular no llega. Para imprimir
+              los de verdad, entrá por la IP de la compu o por el dominio del local.
+            </p>
           </div>
         )}
 
-        {/* Grilla de Mesas */}
-        <div className="mx-auto max-w-5xl">
-          {cargando ? (
-            <div className="py-12 text-center text-secundario font-medium">
-              Cargando mesas...
-            </div>
-          ) : mesas.length === 0 ? (
-            <div className="rounded-2xl border border-linea bg-tarjeta p-12 text-center text-secundario shadow-sm">
-              Todavía no hay mesas cargadas en este local. Creá la primera desde "+ Nueva Mesa".
-            </div>
+        {aviso &&
+          (aviso.error ? (
+            <AvisoDeFallo key={aviso.vez}>{aviso.texto}</AvisoDeFallo>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {mesas.map((mesa) => (
-                <div
-                  key={mesa.id}
-                  className={`rounded-2xl border p-5 shadow-sm flex flex-col justify-between transition-all ${
-                    mesa.habilitada
-                      ? 'border-linea bg-tarjeta'
-                      : 'border-stone-300 bg-stone-100/80 opacity-85'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-2 mb-3">
-                      <div>
-                        <h2 className="text-lg font-bold font-serif text-primario">
-                          Mesa {mesa.numero}
-                        </h2>
-                        {mesa.capacidad && (
-                          <p className="text-xs text-secundario">
-                            Capacidad: {mesa.capacidad} personas
-                          </p>
-                        )}
-                      </div>
+            <p
+              key={aviso.vez}
+              role="status"
+              className="rounded-[14px] border-[1.5px] border-primario bg-tarjeta p-3 text-[15px] font-semibold"
+            >
+              {aviso.texto}
+            </p>
+          ))}
 
-                      <span
-                        className={`text-[11px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
-                          !mesa.habilitada
-                            ? 'bg-red-100 text-red-800 border border-red-200'
-                            : mesa.estadoCuenta && mesa.estadoCuenta !== 'LIBRE'
-                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                            : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                        }`}
-                      >
-                        {!mesa.habilitada
-                          ? 'Inhabilitada'
-                          : mesa.estadoCuenta || 'Libre'}
-                      </span>
-                    </div>
-
-                    <div className="mb-4 rounded-xl border border-linea/70 bg-fondo/60 p-2.5 text-[11px] text-secundario font-mono truncate">
-                      Token: {mesa.tokenQr}
-                    </div>
-                  </div>
-
-                  {/* Acciones de la Mesa */}
-                  <div className="pt-3 border-t border-linea flex flex-col gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setMesaQrSeleccionada(mesa)}
-                      className="w-full rounded-xl bg-primario py-2 text-xs font-semibold text-texto-boton hover:bg-[#38241d] transition-colors"
-                    >
-                      Ver / Imprimir QR
-                    </button>
-
-                    <div className="flex items-center justify-between gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => handleAbrirModalForm(mesa)}
-                        className="flex-1 rounded-lg border border-linea bg-tarjeta py-1.5 text-xs font-semibold text-texto hover:bg-fondo transition-colors"
-                      >
-                        Editar
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleToggleHabilitacion(mesa)}
-                        className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-colors ${
-                          mesa.habilitada
-                            ? 'border border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
-                            : 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                        }`}
-                      >
-                        {mesa.habilitada ? 'Inhabilitar' : 'Habilitar'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* MODAL 1: Alta / Edición de Mesa */}
-      {modalFormAbierto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm print:hidden">
-          <form
-            onSubmit={handleGuardarMesa}
-            className="w-full max-w-md rounded-2xl border border-linea bg-tarjeta p-6 shadow-xl"
-          >
-            <h3 className="text-lg font-bold font-serif text-primario mb-4">
-              {mesaEditando ? `Editar Mesa ${mesaEditando.numero}` : 'Nueva Mesa'}
-            </h3>
-
-            <div className="space-y-4 text-xs font-semibold text-secundario">
-              <div>
-                <label className="block mb-1">Número o identificador de mesa *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ej: 1, 12, Patio 2"
-                  value={formMesa.numero}
-                  onChange={(e) => setFormMesa({ ...formMesa, numero: e.target.value })}
-                  className="w-full rounded-xl border border-linea bg-white p-2.5 text-sm font-normal text-texto"
-                />
-              </div>
-
-              <div>
-                <label className="block mb-1">Capacidad (comensales)</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="50"
-                  value={formMesa.capacidad ?? ''}
-                  onChange={(e) =>
-                    setFormMesa({
-                      ...formMesa,
-                      capacidad: e.target.value ? Number(e.target.value) : undefined,
-                    })
-                  }
-                  className="w-full rounded-xl border border-linea bg-white p-2.5 text-sm font-normal text-texto"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                type="button"
-                onClick={() => setModalFormAbierto(false)}
-                className="flex-1 rounded-xl border border-linea py-2.5 text-sm font-semibold text-texto hover:bg-fondo transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={guardandoMesa}
-                className="flex-1 rounded-xl bg-primario py-2.5 text-sm font-semibold text-texto-boton hover:bg-[#38241d] disabled:opacity-50 transition-colors"
-              >
-                {guardandoMesa ? 'Guardando...' : 'Guardar'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* MODAL 2: Vista Previa, Regeneración e Impresión de QR */}
-      {mesaQrSeleccionada && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm print:static print:bg-transparent print:p-0">
-          <div className="w-full max-w-sm rounded-2xl border border-linea bg-tarjeta p-6 shadow-xl text-center print:w-full print:max-w-xs print:border-2 print:border-primario print:shadow-none print:mx-auto">
-            {/* Tarjeta imprimible */}
-            <div className="py-2">
-              <p className="text-xs font-bold uppercase tracking-widest text-secundario">
-                Chit&Go
-              </p>
-              <h3 className="text-2xl font-bold font-serif text-primario mt-1 mb-4">
-                Mesa {mesaQrSeleccionada.numero}
-              </h3>
-
-              <div className="inline-flex items-center justify-center rounded-2xl border border-linea bg-white p-4 shadow-inner print:border-none print:shadow-none">
-                <QRCodeSVG
-                  value={construirUrlQr(mesaQrSeleccionada.tokenQr)}
-                  size={200}
-                  level="M"
-                  includeMargin={false}
-                />
-              </div>
-
-              <p className="mt-4 text-xs font-medium text-texto">
-                Escaneá el código QR para ver la carta y pedir desde tu mesa
-              </p>
-              <p className="mt-1 text-[10px] font-mono text-secundario break-all print:hidden">
-                {construirUrlQr(mesaQrSeleccionada.tokenQr)}
-              </p>
-            </div>
-
-            {/* Botones de acción (ocultos al imprimir) */}
-            <div className="mt-6 flex flex-col gap-2.5 print:hidden">
-              <button
-                type="button"
-                onClick={handleImprimirQr}
-                className="w-full rounded-xl bg-primario py-2.5 text-sm font-semibold text-texto-boton hover:bg-[#38241d] transition-colors"
-              >
-                Imprimir Cartel QR
-              </button>
-
-              <button
-                type="button"
-                onClick={handleRegenerarQr}
-                disabled={regenerandoQr}
-                className="w-full rounded-xl border border-amber-300 bg-amber-50 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-50 transition-colors"
-              >
-                {regenerandoQr ? 'Regenerando token...' : 'Regenerar Token QR'}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMesaQrSeleccionada(null)}
-                className="w-full rounded-xl border border-linea py-2 text-xs font-semibold text-texto hover:bg-fondo transition-colors"
-              >
-                Cerrar
-              </button>
-            </div>
+        {mesas === null && !errorLista ? (
+          <p className="py-10 text-center text-secundario">Cargando las mesas…</p>
+        ) : mesas === null ? (
+          <div className="py-10 text-center">
+            <p role="alert">{errorLista}</p>
+            <button type="button" onClick={cargar} className={`mx-auto mt-4 ${botonContorno}`}>
+              Probá de nuevo
+            </button>
           </div>
+        ) : (
+          <>
+            {todas.length === 0 && <p className="text-secundario">Todavía no hay mesas. Creá la primera.</p>}
+            <ul className="flex flex-wrap items-start gap-4">
+              {todas.map((m) => (
+                <li
+                  key={m.id}
+                  className="flex w-[228px] flex-col items-start gap-2.5 rounded-2xl bg-linea p-[14px] leading-[normal]"
+                >
+                  <div className="flex w-full items-start justify-between gap-2">
+                    <h2 className="min-w-0 text-base font-semibold break-words">Mesa {m.numero}</h2>
+                    {m.inhabilitada && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-primario py-1 pr-[9px] pl-[7px] text-xs font-medium whitespace-nowrap text-texto-boton">
+                        <img src={iconoInhabilitada} alt="" width={14} height={14} />
+                        Inhabilitada
+                      </span>
+                    )}
+                  </div>
+
+                  <div
+                    className={`flex size-[84px] items-center justify-center rounded-[10px] bg-tarjeta ${
+                      m.inhabilitada ? 'opacity-35' : ''
+                    }`}
+                  >
+                    <QRCodeSVG
+                      value={direccionDeLaMesa(m.tokenQr)}
+                      size={64}
+                      level="M"
+                      marginSize={0}
+                      title={`QR de la Mesa ${m.numero}`}
+                    />
+                  </div>
+
+                  {m.inhabilitada && m.motivoInhabilitacion && (
+                    <p className="w-full text-[13px] break-words">Motivo: {m.motivoInhabilitacion}</p>
+                  )}
+
+                  <InterruptorDeMesa
+                    numero={m.numero}
+                    habilitada={!m.inhabilitada}
+                    deshabilitado={enviandoId !== null}
+                    alTocar={() => alTocarInterruptor(m)}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setAImprimir([m])}
+                    aria-label={`Imprimir el QR de la Mesa ${m.numero}`}
+                    className={
+                      m.inhabilitada
+                        ? `flex h-11 w-full items-center justify-center gap-2 rounded-[14px] border-[1.25px] border-dashed border-secundario px-[18px] text-[15px] font-semibold ${foco}`
+                        : `${botonContorno} w-full`
+                    }
+                  >
+                    <img src={m.inhabilitada ? iconoImprimirApagado : iconoImprimir} alt="" width={20} height={20} />
+                    Imprimir QR
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFormulario({ mesa: m })}
+                    aria-label={`Editar la Mesa ${m.numero}`}
+                    className={`flex h-11 items-center gap-2 rounded-[14px] text-[15px] font-semibold underline ${foco}`}
+                  >
+                    <img src={iconoEditar} alt="" width={20} height={20} />
+                    Editar
+                  </button>
+                </li>
+              ))}
+              <li className="flex min-h-[200px] w-[228px] self-stretch">
+                <button
+                  type="button"
+                  onClick={() => setFormulario({ mesa: null })}
+                  className={`flex w-full flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed border-secundario p-3 text-base font-semibold ${foco}`}
+                >
+                  <img src={iconoAgregar} alt="" width={28} height={28} />
+                  Agregar mesa
+                </button>
+              </li>
+            </ul>
+          </>
+        )}
+
+        <p className="text-[13px] text-secundario">Inhabilitar desde acá es fijo, hasta que la vuelvas a habilitar.</p>
+
+        {formulario && (
+          <FormularioDeMesa
+            key={formulario.mesa?.id ?? 'nueva'}
+            mesa={formulario.mesa}
+            alVolver={() => setFormulario(null)}
+            alGuardar={(mesa, nueva) => {
+              setFormulario(null)
+              avisar(nueva ? `Se creó la Mesa ${mesa.numero}.` : `Se guardó la Mesa ${mesa.numero}.`)
+              cargar()
+            }}
+            alPedirBaja={(mesa) => {
+              setFormulario(null)
+              setADarDeBaja(mesa)
+            }}
+          />
+        )}
+
+        {aInhabilitar && (
+          <InhabilitarMesa
+            key={aInhabilitar.id}
+            mesa={aInhabilitar}
+            alVolver={() => setAInhabilitar(null)}
+            alInhabilitar={(mesa) => {
+              setAInhabilitar(null)
+              avisar(`Se inhabilitó la Mesa ${mesa.numero}.`)
+              cargar()
+            }}
+          />
+        )}
+
+        {aDarDeBaja && (
+          <DialogoDeConfirmacion
+            key={aDarDeBaja.id}
+            titulo={`¿Dar de baja la Mesa ${aDarDeBaja.numero}?`}
+            texto="Deja de aparecer en la lista y su QR ya no abre la mesa. Lo que ya pasó en ella queda en la auditoría."
+            textoConfirmar="Sí, dar de baja"
+            enviando={enviandoId !== null}
+            alVolver={() => setADarDeBaja(null)}
+            alConfirmar={() => {
+              const mesa = aDarDeBaja
+              accionar(mesa, () => darDeBajaMesa(mesa.id), `Se dio de baja la Mesa ${mesa.numero}.`)
+            }}
+          />
+        )}
+      </section>
+
+      {/* P-38: solo existe mientras se imprime, una mesa por hoja. */}
+      {aImprimir && (
+        <div className="hidden print:block">
+          {aImprimir.map((m) => (
+            <QrImpreso key={m.id} local={sesion?.local?.nombre ?? ''} numero={m.numero} tokenQr={m.tokenQr} />
+          ))}
         </div>
       )}
-    </div>
-  );
-};
+    </>
+  )
+}

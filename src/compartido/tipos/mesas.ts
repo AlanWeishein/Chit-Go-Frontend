@@ -1,15 +1,10 @@
-export type EstadoOperativoMesa = 'LIBRE' | 'ABIERTA' | 'SOLICITADA';
-
+// Una mesa del local como la manda el back (MesaAdminDto, HU-13). El número es texto libre de hasta 20 caracteres
+// ("1", "12", "Patio 2"). El back lista solo las activas: una mesa dada de baja no vuelve a aparecer.
 export interface MesaAdmin {
-  id: number;
-  numero: string; // En el backend de Chit&Go el identificador visible de mesa es string ("1", "2", etc.)
-  capacidad?: number;
-  habilitada: boolean;
-  estadoCuenta?: EstadoOperativoMesa; // Derivado si tiene cuenta activa
-  tokenQr: string;
-}
-
-export interface GuardarMesaPayload {
-  numero: string;
-  capacidad?: number;
+  id: number
+  numero: string
+  inhabilitada: boolean
+  motivoInhabilitacion: string | null
+  activa: boolean
+  tokenQr: string
 }
