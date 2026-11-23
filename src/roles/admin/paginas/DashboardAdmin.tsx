@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom'
 import { listarAuditoria, textoDeAccion, type RegistroDeAuditoria } from '../../../compartido/api/auditoria'
 import { textoDelError } from '../../../compartido/api/errores'
 import { listarMesas } from '../../../compartido/api/mesas'
-import { obtenerTiemposDePreparacion, obtenerVentas } from '../../../compartido/api/reportes'
+import { listarVentasDelPeriodo, obtenerTiemposDePreparacion, obtenerVentas, type Venta } from '../../../compartido/api/reportes'
 import { useSesion } from '../../../compartido/sesion/SesionContext'
+import iconoElegido from '../../../compartido/ui/iconos/check-14.svg'
 import iconoImprimir from '../../../compartido/ui/iconos/printer-primario.svg'
 import iconoBaja from '../../../compartido/ui/iconos/ban-20.svg'
 import iconoFlecha from '../../../compartido/ui/iconos/arrow-r.svg'
@@ -15,7 +16,6 @@ import { fechaHoraCorta, nombreDeEntidad } from '../componentes/DetalleDeAuditor
 
 // El dashboard del Admin (P-13, ST-34). Se arma en el front con lo que el back ya da: no hay un GET /admin/dashboard.
 // Todo es de hoy, en la zona del navegador, como Reportes (P-17). No se actualiza en vivo: se pide al entrar.
-// El gráfico "Ventas por hora" es de la tarea 2: acá queda solo el lugar con el título.
 
 const foco = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primario'
 const botonContorno = `flex h-11 items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-primario px-[18px] text-[15px] font-semibold text-primario ${foco}`
@@ -111,6 +111,100 @@ function Icono({ src, color = 'bg-primario' }: { src: string; color?: string }) 
   return <span aria-hidden="true" className={`size-5 shrink-0 ${color}`} style={{ mask: mascara, WebkitMask: mascara }} />
 }
 
+// "Ventas por hora" (Hoy) y por día (Semana). Las barras se arman sumando `total` por la hora o el día de `cerradaEn`,
+// en la hora de la tablet.
+type Vista = 'hoy' | 'semana'
+
+interface Barra {
+  clave: string
+  etiqueta: string // abajo de la barra: "21h", "Lun"
+  lectura: string // para el lector de pantalla: "21 h: $ 48.000"
+  total: number
+}
+
+// Desde la primera hora con ventas hasta la hora actual, sin saltear las horas sin ventas. Las horas después de las
+// 00 son de mañana: "hoy" es el día del calendario, como en P-17.
+function barrasDeHoy(ventas: Venta[], hoy: string, horaActual: number): Barra[] {
+  const porHora = new Array<number>(24).fill(0)
+  let primera = 24
+  let ultima = -1
+  for (const v of ventas) {
+    const d = new Date(v.cerradaEn)
+    if (aTexto(d) !== hoy) continue
+    porHora[d.getHours()] += v.total
+    primera = Math.min(primera, d.getHours())
+    ultima = Math.max(ultima, d.getHours())
+  }
+  if (ultima < 0) return []
+  const barras: Barra[] = []
+  for (let h = primera; h <= Math.max(horaActual, ultima); h++) {
+    const hora = String(h).padStart(2, '0')
+    barras.push({ clave: hora, etiqueta: `${hora}h`, lectura: `${hora} h: ${precio(porHora[h])}`, total: porHora[h] })
+  }
+  return barras
+}
+
+// De lunes a hoy, como "Semana" en P-17.
+function barrasDeLaSemana(ventas: Venta[], lunes: Date, hoy: string): Barra[] {
+  const porDia = new Map<string, number>()
+  for (const v of ventas) {
+    const dia = aTexto(new Date(v.cerradaEn))
+    porDia.set(dia, (porDia.get(dia) ?? 0) + v.total)
+  }
+  const barras: Barra[] = []
+  for (let d = lunes; aTexto(d) <= hoy; d = sumarDias(d, 1)) {
+    const clave = aTexto(d)
+    const nombre = DIAS[d.getDay()].charAt(0).toUpperCase() + DIAS[d.getDay()].slice(1)
+    const total = porDia.get(clave) ?? 0
+    const fecha = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+    barras.push({ clave, etiqueta: nombre.slice(0, 3), lectura: `${nombre} ${fecha}: ${precio(total)}`, total })
+  }
+  return barras.some((b) => b.total > 0) ? barras : []
+}
+
+// La más alta va oscura, como la de las 00h del nodo (si hay empate, todas las más altas). Cada barra mide como mucho
+// 72 px, como en el nodo: si son pocas, no se estiran. Con más de 12 (Hoy, de mañana a la noche) se juntan y la
+// etiqueta sale una sí y una no, porque "18h" no entra abajo de una barra de 20 px.
+function Barras({ barras }: { barras: Barra[] }) {
+  const maximo = Math.max(...barras.map((b) => b.total))
+  const muchas = barras.length > 12
+  const fila = `flex ${muchas ? 'gap-1' : 'gap-2.5'}`
+  const columna = 'min-w-0 max-w-[72px] flex-1'
+  return (
+    <div className="flex flex-col gap-1.5">
+      <ul className={`${fila} h-[170px] items-end`}>
+        {barras.map((b) => {
+          const alto = (b.total / maximo) * 100
+          return (
+            <li key={b.clave} tabIndex={0} aria-label={b.lectura} className={`group relative flex h-full items-end rounded-[4px] ${columna} ${foco}`}>
+              <span
+                aria-hidden="true"
+                className={`w-full rounded-[4px] ${b.total === maximo ? 'bg-primario' : 'bg-linea'}`}
+                style={{ height: b.total > 0 ? `max(${alto}%, 2px)` : 0 }}
+              />
+              {/* El monto, arriba de la barra, al pasar el mouse o con Tab. El lector de pantalla lee el aria-label. */}
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute left-1/2 z-10 hidden -translate-x-1/2 rounded-md bg-texto px-2 py-1 text-[13px] font-medium whitespace-nowrap text-texto-boton group-hover:block group-focus-visible:block"
+                style={{ bottom: `calc(${alto}% + 6px)` }}
+              >
+                {precio(b.total)}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+      <div aria-hidden="true" className={fila}>
+        {barras.map((b, i) => (
+          <span key={b.clave} className={`${columna} h-4 text-center text-[13px] whitespace-nowrap text-secundario`}>
+            {muchas && i % 2 === 1 ? '' : b.etiqueta}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 const ACCESOS = [
   { a: '/admin/menu/nuevo', texto: 'Nuevo plato', icono: iconoMas },
   { a: '/admin/disponibilidad', texto: 'Plato no disponible', icono: iconoBaja },
@@ -121,17 +215,21 @@ const ACCESOS = [
 
 export default function DashboardAdmin() {
   const { sesion } = useSesion()
-  const [{ ahora, hoy, mismoDia }] = useState(() => {
+  const [{ ahora, hoy, mismoDia, lunes }] = useState(() => {
     const ahora = new Date()
     const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate())
-    return { ahora, hoy: aTexto(hoy), mismoDia: aTexto(sumarDias(hoy, -7)) }
+    // La semana arranca el lunes, como en ReportesAdmin.tsx.
+    return { ahora, hoy: aTexto(hoy), mismoDia: aTexto(sumarDias(hoy, -7)), lunes: sumarDias(hoy, -((hoy.getDay() + 6) % 7)) }
   })
+  const [vista, setVista] = useState<Vista>('hoy')
 
   const ventas = useBloque(() => obtenerVentas('admin', hoy, hoy))
   const ventasAntes = useBloque(() => obtenerVentas('admin', mismoDia, mismoDia))
   const tiempos = useBloque(() => obtenerTiemposDePreparacion('admin', hoy, hoy))
   const mesas = useBloque(listarMesas)
   const actividad = useBloque(() => listarAuditoria('admin', 0, 4))
+  // Un solo pedido, de lunes a hoy: Hoy sale de filtrar esas cuentas, y cambiar de vista no vuelve a pedir.
+  const ventasDeLaSemana = useBloque(() => listarVentasDelPeriodo('admin', aTexto(lunes), hoy))
 
   const nombreDeDia = DIAS[ahora.getDay()]
   const dosDigitos = (n: number) => String(n).padStart(2, '0')
@@ -147,6 +245,8 @@ export default function DashboardAdmin() {
   const totalMesas = mesas.datos?.length ?? 0
   const inhabilitadas = mesas.datos?.filter((m) => m.inhabilitada).length ?? 0
   const filas: RegistroDeAuditoria[] = actividad.datos?.contenido ?? []
+  const cuentas = ventasDeLaSemana.datos
+  const barras = cuentas === null ? [] : vista === 'hoy' ? barrasDeHoy(cuentas, hoy, ahora.getHours()) : barrasDeLaSemana(cuentas, lunes, hoy)
 
   // 4 px entre el título, el número y la línea de abajo, como el nodo (en Reportes son 6).
   const valor = 'titulo mt-1 text-[30px] tabular-nums'
@@ -241,12 +341,40 @@ export default function DashboardAdmin() {
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)_320px] items-start gap-4">
-        {/* El gráfico va en la tarea 2. Este es su lugar, con el tamaño del nodo (646 × 258). */}
-        <section className="flex flex-col gap-3.5 leading-[normal]">
-          <div className="flex min-h-[52px] items-center">
+        {/* 646 × 258, como el nodo: la fila del título con el selector (52) y el gráfico (192). */}
+        <section aria-busy={ventasDeLaSemana.cargando} className="flex flex-col gap-3.5 leading-[normal]">
+          <div className="flex min-h-[52px] items-center justify-between gap-4">
             <h2 className="text-[17px] font-semibold">Ventas por hora</h2>
+            <div role="group" aria-label="Período del gráfico" className="flex gap-1 rounded-xl bg-linea p-1">
+              {(
+                [
+                  { vista: 'hoy', texto: 'Hoy' },
+                  { vista: 'semana', texto: 'Semana' },
+                ] as const
+              ).map((o) => {
+                const elegida = o.vista === vista
+                return (
+                  <button
+                    key={o.vista}
+                    type="button"
+                    aria-pressed={elegida}
+                    onClick={() => setVista(o.vista)}
+                    className={`flex h-11 items-center gap-1.5 rounded-[9px] px-3.5 text-[13px] ${foco} ${
+                      elegida ? 'border-[1.5px] border-primario bg-tarjeta font-medium' : ''
+                    }`}
+                  >
+                    {elegida && <img src={iconoElegido} alt="" width={14} height={14} />}
+                    {o.texto}
+                  </button>
+                )
+              })}
+            </div>
           </div>
-          <div className="h-[192px]" />
+          <div className="min-h-[192px]">
+            <Estado cargando={ventasDeLaSemana.cargando} error={ventasDeLaSemana.error} reintentar={ventasDeLaSemana.reintentar}>
+              {cuentas && (barras.length === 0 ? <p className="text-[13px] text-secundario">Sin ventas todavía</p> : <Barras barras={barras} />)}
+            </Estado>
+          </div>
         </section>
 
         <section aria-busy={actividad.cargando} className="flex flex-col gap-2.5 leading-[normal]">
