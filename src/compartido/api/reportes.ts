@@ -44,6 +44,20 @@ export function obtenerVentas(ambito: Ambito, desde: string, hasta: string) {
   return api<VentasDelPeriodo>(`/${ambito}/reportes/ventas?${consulta(desde, hasta, 1)}`)
 }
 
+// Todas las cuentas cerradas del período, para el gráfico del dashboard (P-13). El detalle pagina de a 100 como mucho,
+// así que se pide hasta la última página, como listarMesas(). Si una página falla, falla todo, para no mostrar barras
+// a medias. El back las ordena de la más nueva a la más vieja.
+export async function listarVentasDelPeriodo(ambito: Ambito, desde: string, hasta: string): Promise<Venta[]> {
+  const todas: Venta[] = []
+  for (let page = 0; ; page++) {
+    const consultaDePagina = new URLSearchParams({ desde, hasta, page: String(page), size: '100' }).toString()
+    const { detalle } = await api<VentasDelPeriodo>(`/${ambito}/reportes/ventas?${consultaDePagina}`)
+    todas.push(...detalle.contenido)
+    if (page + 1 >= detalle.totalPaginas) break
+  }
+  return todas
+}
+
 export function obtenerTiemposDePreparacion(ambito: Ambito, desde: string, hasta: string) {
   return api<TiemposDePreparacion>(`/${ambito}/reportes/tiempos-preparacion?${consulta(desde, hasta, 1)}`)
 }
