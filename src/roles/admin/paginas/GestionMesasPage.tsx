@@ -11,6 +11,7 @@ import iconoAgregar from '../../../compartido/ui/iconos/plus-28.svg'
 import iconoNueva from '../../../compartido/ui/iconos/plus-blanco.svg'
 import iconoImprimirApagado from '../../../compartido/ui/iconos/printer.svg'
 import iconoImprimir from '../../../compartido/ui/iconos/printer-primario.svg'
+import Paginacion from '../../../compartido/ui/Paginacion'
 import AvisoDeFallo from '../../acceso/componentes/AvisoDeFallo'
 import DialogoDeConfirmacion from '../componentes/DialogoDeConfirmacion'
 import FormularioDeMesa from '../componentes/FormularioDeMesa'
@@ -24,6 +25,8 @@ interface Aviso {
   error: boolean
   vez: number
 }
+
+const POR_PAGINA = 12 // 3 filas de 4 tarjetas a 1280 px (ST-35)
 
 const foco = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primario'
 const botonContorno = `flex h-11 items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-primario px-[18px] text-[15px] font-semibold text-primario disabled:opacity-[.38] ${foco}`
@@ -53,6 +56,7 @@ export default function GestionMesasPage() {
   const [aDarDeBaja, setADarDeBaja] = useState<MesaAdmin | null>(null)
   const [enviandoId, setEnviandoId] = useState<number | null>(null)
   const [aImprimir, setAImprimir] = useState<MesaAdmin[] | null>(null)
+  const [pagina, setPagina] = useState(0)
 
   const ultimoPedido = useRef(0) // vale solo la última respuesta
   const hayDatos = useRef(false)
@@ -63,13 +67,16 @@ export default function GestionMesasPage() {
     setAviso({ texto, error, vez: ++vez.current })
   }
 
-  function cargar() {
+  // Con `irA`, la lista pasa a la página donde cae esa mesa (la que se creó o se editó), así se ve al lado del aviso.
+  function cargar(irA?: number) {
     const numero = ++ultimoPedido.current
     listarMesas()
       .then((lista) => {
         if (numero !== ultimoPedido.current) return
         hayDatos.current = true
         setMesas(lista)
+        const indice = irA === undefined ? -1 : lista.findIndex((m) => m.id === irA)
+        if (indice >= 0) setPagina(Math.floor(indice / POR_PAGINA))
         setErrorLista(null)
       })
       .catch((err) => {
@@ -127,7 +134,13 @@ export default function GestionMesasPage() {
     }
   }
 
+  // `todas` es la lista completa: la bajada e "Imprimir todos" la usan entera. La grilla muestra `visibles`.
   const todas = mesas ?? []
+  const totalPaginas = Math.max(1, Math.ceil(todas.length / POR_PAGINA))
+  // Si la lista se achica al recargar (una baja), la página no se queda más allá de la última.
+  const paginaActual = Math.min(pagina, totalPaginas - 1)
+  const visibles = todas.slice(paginaActual * POR_PAGINA, (paginaActual + 1) * POR_PAGINA)
+  const esLaUltima = paginaActual === totalPaginas - 1
 
   return (
     <>
@@ -186,7 +199,7 @@ export default function GestionMesasPage() {
         ) : mesas === null ? (
           <div className="py-10 text-center">
             <p role="alert">{errorLista}</p>
-            <button type="button" onClick={cargar} className={`mx-auto mt-4 ${botonContorno}`}>
+            <button type="button" onClick={() => cargar()} className={`mx-auto mt-4 ${botonContorno}`}>
               Probá de nuevo
             </button>
           </div>
@@ -194,7 +207,7 @@ export default function GestionMesasPage() {
           <>
             {todas.length === 0 && <p className="text-secundario">Todavía no hay mesas. Creá la primera.</p>}
             <ul className="flex flex-wrap items-start gap-4">
-              {todas.map((m) => (
+              {visibles.map((m) => (
                 <li
                   key={m.id}
                   className="flex w-[228px] flex-col items-start gap-2.5 rounded-2xl bg-linea p-[14px] leading-[normal]"
@@ -259,17 +272,29 @@ export default function GestionMesasPage() {
                   </button>
                 </li>
               ))}
-              <li className="flex min-h-[200px] w-[228px] self-stretch">
-                <button
-                  type="button"
-                  onClick={() => setFormulario({ mesa: null })}
-                  className={`flex w-full flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed border-secundario p-3 text-base font-semibold ${foco}`}
-                >
-                  <img src={iconoAgregar} alt="" width={28} height={28} />
-                  Agregar mesa
-                </button>
-              </li>
+              {/* Solo en la última página: en las llenas bajaría a una cuarta fila. "Nueva mesa" está siempre. */}
+              {esLaUltima && (
+                <li className="flex min-h-[200px] w-[228px] self-stretch">
+                  <button
+                    type="button"
+                    onClick={() => setFormulario({ mesa: null })}
+                    className={`flex w-full flex-col items-center justify-center gap-2 rounded-[14px] border border-dashed border-secundario p-3 text-base font-semibold ${foco}`}
+                  >
+                    <img src={iconoAgregar} alt="" width={28} height={28} />
+                    Agregar mesa
+                  </button>
+                </li>
+              )}
             </ul>
+            {todas.length > 0 && (
+              <Paginacion
+                pagina={paginaActual}
+                totalPaginas={totalPaginas}
+                mostrando={visibles.length}
+                total={todas.length}
+                alCambiar={setPagina}
+              />
+            )}
           </>
         )}
 
@@ -283,7 +308,7 @@ export default function GestionMesasPage() {
             alGuardar={(mesa, nueva) => {
               setFormulario(null)
               avisar(nueva ? `Se creó la Mesa ${mesa.numero}.` : `Se guardó la Mesa ${mesa.numero}.`)
-              cargar()
+              cargar(mesa.id) // la lista sigue a la mesa, también si al editarla cambió de número y de página
             }}
             alPedirBaja={(mesa) => {
               setFormulario(null)
