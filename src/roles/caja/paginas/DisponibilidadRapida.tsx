@@ -3,8 +3,8 @@ import { textoDelError } from '../../../compartido/api/errores'
 import { listarPlatos, type PlatoConDisponibilidad } from '../../../compartido/api/platos'
 import iconoNoDisponible from '../../../compartido/ui/iconos/ban.svg'
 import iconoDisponible from '../../../compartido/ui/iconos/check-14.svg'
-import iconoElegido from '../../../compartido/ui/iconos/check-16.svg'
 import iconoBuscar from '../../../compartido/ui/iconos/search-18.svg'
+import FiltroDeCategorias from '../../../compartido/ui/FiltroDeCategorias'
 import InterruptorDeDisponibilidad from '../../../compartido/ui/InterruptorDeDisponibilidad'
 import { normalizar } from '../../../compartido/ui/normalizar'
 import Paginacion from '../../../compartido/ui/Paginacion'
@@ -65,10 +65,14 @@ export default function DisponibilidadRapida({
   for (const p of todas) {
     if (!categorias.some((c) => c.id === p.categoria.id)) categorias.push(p.categoria)
   }
+  // Si la categoría elegida ya no tiene platos (se dio de baja el último y la lista se recargó), el filtro vuelve a
+  // "Todas".
+  const categoriaElegida = categorias.some((c) => c.id === categoriaId) ? categoriaId : null
   const texto = normalizar(busqueda.trim())
   const filtrados = todas.filter(
     (p) =>
-      (categoriaId === null || p.categoria.id === categoriaId) && (texto === '' || normalizar(p.nombre).includes(texto)),
+      (categoriaElegida === null || p.categoria.id === categoriaElegida) &&
+      (texto === '' || normalizar(p.nombre).includes(texto)),
   )
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA))
   // Si la lista se achica al recargar, la página no se queda más allá de la última.
@@ -126,25 +130,7 @@ export default function DisponibilidadRapida({
       ) : (
         <>
           <div className="flex flex-wrap gap-2">
-            {[{ id: null, nombre: 'Todos' }, ...categorias].map((c) => {
-              const activa = categoriaId === c.id
-              return (
-                <button
-                  key={c.id ?? 'todos'}
-                  type="button"
-                  onClick={() => elegirCategoria(c.id)}
-                  aria-pressed={activa}
-                  className={`flex h-11 items-center rounded-full text-[13px] ${foco} ${
-                    activa
-                      ? 'gap-1.5 bg-suave pr-3.5 pl-2.5 font-medium'
-                      : 'border border-secundario px-3.5'
-                  }`}
-                >
-                  {activa && <img src={iconoElegido} alt="" width={16} height={16} />}
-                  {c.nombre}
-                </button>
-              )
-            })}
+            <FiltroDeCategorias categorias={categorias} elegida={categoriaElegida} alElegir={elegirCategoria} />
           </div>
 
           {errorLista && (
