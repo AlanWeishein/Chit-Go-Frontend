@@ -7,11 +7,13 @@ import iconoElegido from '../../../compartido/ui/iconos/check-16.svg'
 import iconoBuscar from '../../../compartido/ui/iconos/search-18.svg'
 import InterruptorDeDisponibilidad from '../../../compartido/ui/InterruptorDeDisponibilidad'
 import { normalizar } from '../../../compartido/ui/normalizar'
+import Paginacion from '../../../compartido/ui/Paginacion'
 import { useCambioDeDisponibilidad } from '../../../compartido/ui/useCambioDeDisponibilidad'
 import AvisoDeFallo from '../../acceso/componentes/AvisoDeFallo'
 
 const rotulo = 'text-[11px] leading-[normal] font-semibold tracking-[0.66px] text-secundario uppercase'
 const foco = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primario'
+const POR_PAGINA = 12
 
 // Se usa en Caja (adentro de MarcoCaja) y en el Admin (adentro de MarcoAdmin, P-10c): no depende del marco.
 // El Admin le pasa su propio subtítulo. El switch y el diálogo de pedidos afectados son los de compartido/ui,
@@ -25,6 +27,7 @@ export default function DisponibilidadRapida({
   const [errorLista, setErrorLista] = useState<string | null>(null)
   const [busqueda, setBusqueda] = useState('')
   const [categoriaId, setCategoriaId] = useState<number | null>(null)
+  const [pagina, setPagina] = useState(0)
   const ultimoPedido = useRef(0)
 
   function recargar() {
@@ -46,16 +49,31 @@ export default function DisponibilidadRapida({
 
   const { alternar, cambiando, aviso, exito, dialogo, refDelSwitch } = useCambioDeDisponibilidad(recargar)
 
+  // Buscar o cambiar de categoría vuelve a la primera página. Prender o apagar un plato no: `recargar` solo cambia
+  // `platos`, así que la página se mantiene.
+  function buscar(texto: string) {
+    setBusqueda(texto)
+    setPagina(0)
+  }
+  function elegirCategoria(id: number | null) {
+    setCategoriaId(id)
+    setPagina(0)
+  }
+
   const todas = platos ?? []
   const categorias: { id: number; nombre: string }[] = []
   for (const p of todas) {
     if (!categorias.some((c) => c.id === p.categoria.id)) categorias.push(p.categoria)
   }
   const texto = normalizar(busqueda.trim())
-  const visibles = todas.filter(
+  const filtrados = todas.filter(
     (p) =>
       (categoriaId === null || p.categoria.id === categoriaId) && (texto === '' || normalizar(p.nombre).includes(texto)),
   )
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA))
+  // Si la lista se achica al recargar, la página no se queda más allá de la última.
+  const paginaActual = Math.min(pagina, totalPaginas - 1)
+  const visibles = filtrados.slice(paginaActual * POR_PAGINA, (paginaActual + 1) * POR_PAGINA)
 
   return (
     <section className="flex min-h-full flex-col gap-4 bg-fondo px-6 pt-6 pb-6 font-inter text-texto">
@@ -75,7 +93,7 @@ export default function DisponibilidadRapida({
           <input
             type="search"
             value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
+            onChange={(e) => buscar(e.target.value)}
             placeholder="Buscar plato"
             aria-label="Buscar plato"
             className={`h-12 w-full rounded-xl border-[1.25px] border-secundario bg-tarjeta pr-[14px] pl-[42px] text-[15px] text-texto placeholder:text-secundario ${foco}`}
@@ -114,7 +132,7 @@ export default function DisponibilidadRapida({
                 <button
                   key={c.id ?? 'todos'}
                   type="button"
-                  onClick={() => setCategoriaId(c.id)}
+                  onClick={() => elegirCategoria(c.id)}
                   aria-pressed={activa}
                   className={`flex h-11 items-center rounded-full text-[13px] ${foco} ${
                     activa
@@ -138,44 +156,53 @@ export default function DisponibilidadRapida({
             </p>
           )}
 
-          {visibles.length === 0 ? (
+          {filtrados.length === 0 ? (
             <p className="py-10 text-center text-secundario">No hay platos con ese filtro.</p>
           ) : (
-            <table className="w-full table-fixed border-collapse text-left text-[13px] leading-[normal]">
-              <thead>
-                <tr className={`h-[35px] border-b border-linea ${rotulo}`}>
-                  <th className="px-2.5 font-semibold">Plato</th>
-                  <th className="w-[120px] px-2.5 font-semibold">Categoría</th>
-                  <th className="w-[150px] px-2.5 font-semibold">Estado</th>
-                  <th className="w-[190px] px-2.5 font-semibold">Disponible</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibles.map((p) => (
-                  <tr key={p.id} className="h-[51px] last:h-[50px] not-first:border-t not-first:border-linea">
-                    <td className="px-2.5">{p.nombre}</td>
-                    <td className="px-2.5">{p.categoria.nombre}</td>
-                    <td className="px-2.5">
-                      <span className="inline-flex w-max items-center gap-1 rounded-md bg-linea py-1 pr-[9px] pl-[7px] text-xs leading-[normal] font-medium whitespace-nowrap">
-                        <img src={p.disponible ? iconoDisponible : iconoNoDisponible} alt="" width={14} height={14} />
-                        {p.disponible ? 'Disponible' : 'No disponible'}
-                      </span>
-                    </td>
-                    <td className="px-2.5">
-                      <InterruptorDeDisponibilidad
-                        ref={refDelSwitch(p.id)}
-                        nombre={p.nombre}
-                        activo={p.disponible}
-                        textoActivo="Disponible"
-                        textoInactivo="No disponible"
-                        deshabilitado={cambiando === p.id}
-                        alTocar={() => alternar(p)}
-                      />
-                    </td>
+            <>
+              <table className="w-full table-fixed border-collapse text-left text-[13px] leading-[normal]">
+                <thead>
+                  <tr className={`h-[35px] border-b border-linea ${rotulo}`}>
+                    <th className="px-2.5 font-semibold">Plato</th>
+                    <th className="w-[120px] px-2.5 font-semibold">Categoría</th>
+                    <th className="w-[150px] px-2.5 font-semibold">Estado</th>
+                    <th className="w-[190px] px-2.5 font-semibold">Disponible</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {visibles.map((p) => (
+                    <tr key={p.id} className="h-[51px] last:h-[50px] not-first:border-t not-first:border-linea">
+                      <td className="px-2.5">{p.nombre}</td>
+                      <td className="px-2.5">{p.categoria.nombre}</td>
+                      <td className="px-2.5">
+                        <span className="inline-flex w-max items-center gap-1 rounded-md bg-linea py-1 pr-[9px] pl-[7px] text-xs leading-[normal] font-medium whitespace-nowrap">
+                          <img src={p.disponible ? iconoDisponible : iconoNoDisponible} alt="" width={14} height={14} />
+                          {p.disponible ? 'Disponible' : 'No disponible'}
+                        </span>
+                      </td>
+                      <td className="px-2.5">
+                        <InterruptorDeDisponibilidad
+                          ref={refDelSwitch(p.id)}
+                          nombre={p.nombre}
+                          activo={p.disponible}
+                          textoActivo="Disponible"
+                          textoInactivo="No disponible"
+                          deshabilitado={cambiando === p.id}
+                          alTocar={() => alternar(p)}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <Paginacion
+                pagina={paginaActual}
+                totalPaginas={totalPaginas}
+                mostrando={visibles.length}
+                total={filtrados.length}
+                alCambiar={setPagina}
+              />
+            </>
           )}
         </>
       )}
