@@ -34,6 +34,7 @@ import ColaCocina from './roles/cocina/paginas/ColaCocina'
 import MarcoAdmin from './roles/admin/componentes/MarcoAdmin'
 import CartaAdmin from './roles/admin/paginas/CartaAdmin'
 import CategoriasYEtiquetas from './roles/admin/paginas/CategoriasYEtiquetas'
+import DashboardAdmin from './roles/admin/paginas/DashboardAdmin'
 import FormularioDePlato from './roles/admin/paginas/FormularioDePlato'
 import InicioDelAdmin from './roles/admin/paginas/InicioDelAdmin'
 import AdministradoresAdmin from './roles/admin/paginas/AdministradoresAdmin'
@@ -121,10 +122,11 @@ export default function App() {
           </RutaProtegida>
         }
       >
-        {/* El inicio de cada rol: el Gerente/Dueño va a Administradores y el Admin a Menú. Cada pantalla va en
+        {/* El inicio de cada rol: el Gerente/Dueño va a Administradores y el Admin al Dashboard. Cada pantalla va en
             SoloPara con los roles de su sección (roles/admin/secciones.ts): la que no es del rol manda al inicio. */}
         <Route index element={<InicioDelAdmin />} />
-        <Route path="dashboard" element={<SoloPara roles={SOLO_ADMIN}><Pendiente titulo="Dashboard" /></SoloPara>} />
+        {/* El Dashboard (P-13, ST-34). */}
+        <Route path="dashboard" element={<SoloPara roles={SOLO_ADMIN}><DashboardAdmin /></SoloPara>} />
         {/* La carta (P-14, HU-12). El alta y la edición (P-14b) y las categorías (P-14c) cuelgan de acá. */}
         <Route path="menu" element={<SoloPara roles={SOLO_ADMIN}><CartaAdmin /></SoloPara>} />
         <Route path="menu/categorias" element={<SoloPara roles={SOLO_ADMIN}><CategoriasYEtiquetas /></SoloPara>} />
