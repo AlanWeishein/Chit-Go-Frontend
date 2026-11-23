@@ -13,7 +13,7 @@ export interface PlatoAdmin {
   descripcion: string | null
   precio: number
   categoria: { id: number; nombre: string }
-  imagenUrl: string | null // una URL https o una ruta del front ("/img/milanesa.jpg")
+  imagenUrl: string | null // la ruta de la foto subida, una URL https o una ruta del front ("/img/milanesa.jpg")
   destacado: boolean // "Menú del día": sale arriba en la carta del cliente
   disponible: boolean // en false está fuera de carta
   etiquetas: { id: number; nombre: string }[] // ordenadas por nombre
@@ -51,6 +51,16 @@ export function editarPlato(id: number, datos: DatosDePlato) {
 // 204. 404 "El plato no existe".
 export function destacarPlato(id: number, destacado: boolean) {
   return api<void>(`/admin/platos/${id}/destacado`, { method: 'PATCH', body: JSON.stringify({ destacado }) })
+}
+
+// 200 con el plato y su imagenUrl nueva ("/api/v1/public/imagenes/<uuid>.jpg"). Multipart con el campo `imagen`
+// (ST-29). La foto anterior, si era del back, se borra. 400 "Elegí una imagen", "La imagen pesa más de 3 MB",
+// "La imagen tiene que ser JPEG o PNG", "La imagen mide más de 6000 px de ancho o de alto" o "No se pudo abrir la
+// imagen". 404 "El plato no existe".
+export function subirImagenDePlato(id: number, archivo: File) {
+  const cuerpo = new FormData()
+  cuerpo.append('imagen', archivo)
+  return api<PlatoAdmin>(`/admin/platos/${id}/imagen`, { method: 'POST', body: cuerpo })
 }
 
 // ---------- Categorías ----------
