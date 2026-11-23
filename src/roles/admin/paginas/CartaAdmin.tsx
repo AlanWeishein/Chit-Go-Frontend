@@ -8,7 +8,6 @@ import {
 } from '../../../compartido/api/admin'
 import { textoDelError } from '../../../compartido/api/errores'
 import iconoAnterior from '../../../compartido/ui/iconos/arrow-l-primario.svg'
-import iconoElegido from '../../../compartido/ui/iconos/check-16.svg'
 import iconoSiguiente from '../../../compartido/ui/iconos/chevron-r-primario.svg'
 import iconoCategorias from '../../../compartido/ui/iconos/list.svg'
 import iconoEditar from '../../../compartido/ui/iconos/pencil.svg'
@@ -17,6 +16,7 @@ import iconoNuevo from '../../../compartido/ui/iconos/plus-blanco.svg'
 import iconoBuscar from '../../../compartido/ui/iconos/search-18.svg'
 import iconoDestacado from '../../../compartido/ui/iconos/star.svg'
 import iconoEtiqueta from '../../../compartido/ui/iconos/tag.svg'
+import FiltroDeCategorias from '../../../compartido/ui/FiltroDeCategorias'
 import InterruptorDeDisponibilidad from '../../../compartido/ui/InterruptorDeDisponibilidad'
 import { normalizar } from '../../../compartido/ui/normalizar'
 import { useCambioDeDisponibilidad } from '../../../compartido/ui/useCambioDeDisponibilidad'
@@ -85,10 +85,13 @@ export default function CartaAdmin() {
   }
 
   const todos = platos ?? []
+  // Si la categoría elegida ya no está (la borraron y la lista se recargó), el filtro vuelve a "Todas".
+  const categoriaElegida = categorias.some((c) => c.id === categoriaId) ? categoriaId : null
   const texto = normalizar(busqueda.trim())
   const filtrados = todos.filter(
     (p) =>
-      (categoriaId === null || p.categoria.id === categoriaId) && (texto === '' || normalizar(p.nombre).includes(texto)),
+      (categoriaElegida === null || p.categoria.id === categoriaElegida) &&
+      (texto === '' || normalizar(p.nombre).includes(texto)),
   )
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA))
   // Si la lista se achica al recargar, la página no se queda más allá de la última.
@@ -159,23 +162,7 @@ export default function CartaAdmin() {
                 className={`h-12 w-full rounded-xl border-[1.25px] border-secundario bg-tarjeta pr-[14px] pl-[42px] text-[15px] text-texto placeholder:text-secundario ${foco}`}
               />
             </div>
-            {[{ id: null, nombre: 'Todos' }, ...categorias].map((c) => {
-              const activa = categoriaId === c.id
-              return (
-                <button
-                  key={c.id ?? 'todos'}
-                  type="button"
-                  onClick={() => elegirCategoria(c.id)}
-                  aria-pressed={activa}
-                  className={`flex h-11 items-center rounded-full text-[13px] ${foco} ${
-                    activa ? 'gap-1.5 bg-suave pr-3.5 pl-2.5 font-medium' : 'border border-secundario px-3.5'
-                  }`}
-                >
-                  {activa && <img src={iconoElegido} alt="" width={16} height={16} />}
-                  {c.nombre}
-                </button>
-              )
-            })}
+            <FiltroDeCategorias categorias={categorias} elegida={categoriaElegida} alElegir={elegirCategoria} />
           </div>
 
           {errorLista && (
