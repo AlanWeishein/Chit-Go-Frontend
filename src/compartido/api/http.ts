@@ -28,7 +28,8 @@ export async function api<T>(ruta: string, opciones: RequestInit = {}): Promise<
   const metodo = (resto.method ?? 'GET').toUpperCase()
 
   const headers = new Headers(headersExtra)
-  if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+  // Con un FormData el Content-Type lo arma el navegador, con el boundary del multipart.
+  if (!headers.has('Content-Type') && !(resto.body instanceof FormData)) headers.set('Content-Type', 'application/json')
   if (METODOS_CON_CSRF.has(metodo)) {
     const token = leerCookie('XSRF-TOKEN')
     if (token) headers.set('X-XSRF-TOKEN', token)

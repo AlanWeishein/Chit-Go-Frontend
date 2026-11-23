@@ -3,13 +3,16 @@
 
 export const NOMBRE_MAX = 120
 export const DESCRIPCION_MAX = 500
-export const IMAGEN_MAX = 255
 
 export const ERROR_NOMBRE = 'Poné un nombre'
 export const ERROR_PRECIO = 'El precio tiene que ser mayor a cero'
 export const ERROR_DECIMALES = 'El precio tiene hasta dos decimales'
 export const ERROR_PRECIO_ALTO = 'El precio no puede pasar de 99.999.999,99'
-export const ERROR_IMAGEN = 'La imagen tiene que ser un link https o una ruta del front'
+
+// La foto (ST-29): el front avisa antes de mandar, con los textos del back, pero el que valida es el back.
+export const IMAGEN_MAX_BYTES = 3 * 1024 * 1024 // el mismo tope que application.yml y GestionarPlatosService
+export const ERROR_IMAGEN_PESADA = 'La imagen pesa más de 3 MB'
+export const ERROR_IMAGEN_FORMATO = 'La imagen tiene que ser JPEG o PNG'
 
 export function errorDeNombre(nombre: string): string | null {
   return nombre.trim() === '' ? ERROR_NOMBRE : null
@@ -30,12 +33,9 @@ export function leerPrecio(texto: string): { precio: number; error: null } | { p
   return { precio, error: null }
 }
 
-// Vacía vale (el plato queda sin imagen). Si no, un link https o una ruta del front que no empiece con // ni /\,
-// que el navegador toma como otro sitio.
-export function errorDeImagen(texto: string): string | null {
-  const imagen = texto.trim()
-  if (imagen === '') return null
-  const https = /^https:\/\//i.test(imagen) && imagen.length > 8
-  const rutaDelFront = imagen.startsWith('/') && !imagen.startsWith('//') && !imagen.startsWith('/\\')
-  return (https || rutaDelFront) && imagen.length <= IMAGEN_MAX ? null : ERROR_IMAGEN
+// El tipo sale de lo que dice el navegador (por la extensión); el back mira los primeros bytes.
+export function errorDeArchivo(archivo: File): string | null {
+  if (archivo.type !== 'image/jpeg' && archivo.type !== 'image/png') return ERROR_IMAGEN_FORMATO
+  if (archivo.size > IMAGEN_MAX_BYTES) return ERROR_IMAGEN_PESADA
+  return null
 }

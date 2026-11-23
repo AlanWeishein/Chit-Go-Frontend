@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   crearPlato,
@@ -7,6 +7,7 @@ import {
   listarCategorias,
   listarEtiquetas,
   listarPlatosAdmin,
+  subirImagenDePlato,
   type CategoriaAdmin,
   type EtiquetaAdmin,
   type PlatoAdmin,
@@ -16,6 +17,7 @@ import iconoVolver from '../../../compartido/ui/iconos/arrow-l.svg'
 import iconoElegida from '../../../compartido/ui/iconos/check-16.svg'
 import iconoGuardar from '../../../compartido/ui/iconos/check-blanco.svg'
 import iconoDesplegar from '../../../compartido/ui/iconos/chevron-d.svg'
+import iconoSubir from '../../../compartido/ui/iconos/download.svg'
 import iconoPlato from '../../../compartido/ui/iconos/plate-36.svg'
 import iconoMas from '../../../compartido/ui/iconos/plus.svg'
 import iconoCancelar from '../../../compartido/ui/iconos/x.svg'
@@ -23,9 +25,8 @@ import AvisoDeFallo from '../../acceso/componentes/AvisoDeFallo'
 import ErrorDeCampo from '../componentes/ErrorDeCampo'
 import {
   DESCRIPCION_MAX,
-  IMAGEN_MAX,
   NOMBRE_MAX,
-  errorDeImagen,
+  errorDeArchivo,
   errorDeNombre,
   leerPrecio,
 } from '../validarPlato'
@@ -40,7 +41,7 @@ const bordeDe = (conError: boolean) => (conError ? 'border-2 border-primario' : 
 const campo = (conError: boolean) =>
   `h-12 w-full rounded-xl bg-tarjeta px-3.5 text-[15px] leading-[normal] text-texto placeholder:text-secundario ${bordeDe(conError)} ${foco}`
 
-// La vista previa de la imagen: la que se pegó, o el ícono si no hay o no carga. Con `key` en la URL se reinicia
+// La vista previa de la imagen: la del plato, la que se acaba de elegir, o el ícono si no hay o no carga. Con `key` en la URL se reinicia
 // cuando cambia, para que una imagen rota no deje el ícono pegado.
 function VistaPrevia({ url }: { url: string | null }) {
   const [fallo, setFallo] = useState(false)
@@ -136,9 +137,14 @@ function CamposDelPlato({ datos: { categorias, etiquetas, plato } }: { datos: Da
   const [precioTexto, setPrecioTexto] = useState(plato ? String(plato.precio) : '')
   const [categoriaId, setCategoriaId] = useState(String(plato?.categoria.id ?? categorias[0]?.id ?? ''))
   const [etiquetaIds, setEtiquetaIds] = useState<number[]>(plato?.etiquetas.map((e) => e.id) ?? [])
-  const [imagen, setImagen] = useState(plato?.imagenUrl ?? '')
-  // La vista previa se actualiza al salir del campo, para no pedir una imagen por cada letra que se escribe.
-  const [imagenDeVista, setImagenDeVista] = useState(plato?.imagenUrl ?? '')
+  // La imagenUrl que va en el PUT. Al editar, la foto se sube en el momento y esta pasa a ser la ruta que devuelve
+  // el back: si quedara la vieja, "Guardar plato" la volvería a poner.
+  const [imagen, setImagen] = useState(plato?.imagenUrl ?? null)
+  // En el alta no hay id al que subirla: la foto elegida espera al "Guardar plato" y se ve con una URL local.
+  const [fotoPendiente, setFotoPendiente] = useState<File | null>(null)
+  const [vistaLocal, setVistaLocal] = useState<string | null>(null)
+  const [subiendo, setSubiendo] = useState(false)
+  const [errorDeFoto, setErrorDeFoto] = useState<string | null>(null)
   const [destacado, setDestacado] = useState(plato?.destacado ?? false)
 
   const [intentado, setIntentado] = useState(false)
@@ -148,19 +154,51 @@ function CamposDelPlato({ datos: { categorias, etiquetas, plato } }: { datos: Da
 
   const refNombre = useRef<HTMLInputElement>(null)
   const refPrecio = useRef<HTMLInputElement>(null)
-  const refImagen = useRef<HTMLInputElement>(null)
+  const refArchivo = useRef<HTMLInputElement>(null)
+
+  // La URL local de la foto pendiente se libera al cambiarla o al salir de la pantalla.
+  useEffect(() => {
+    if (!fotoPendiente) return
+    const url = URL.createObjectURL(fotoPendiente)
+    setVistaLocal(url)
+    return () => {
+      URL.revokeObjectURL(url)
+      setVistaLocal(null)
+    }
+  }, [fotoPendiente])
 
   const lectura = leerPrecio(precioTexto)
   const errores = {
     nombre: errorDeNombre(nombre),
     precio: lectura.error,
-    imagen: errorDeImagen(imagen),
   }
-  const mostrar = intentado ? errores : { nombre: null, precio: null, imagen: null }
+  const mostrar = intentado ? errores : { nombre: null, precio: null }
   const sinCategorias = categorias.length === 0
 
   function alternarEtiqueta(id: number) {
     setEtiquetaIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]))
+  }
+
+  async function elegirFoto(e: ChangeEvent<HTMLInputElement>) {
+    const archivo = e.target.files?.[0]
+    e.target.value = '' // para que elegir el mismo archivo otra vez vuelva a disparar el cambio
+    if (!archivo) return
+    const error = errorDeArchivo(archivo)
+    setErrorDeFoto(error)
+    if (error) return
+    if (!plato) {
+      setFotoPendiente(archivo)
+      return
+    }
+    setSubiendo(true)
+    try {
+      const conFoto = await subirImagenDePlato(plato.id, archivo)
+      setImagen(conFoto.imagenUrl)
+    } catch (err) {
+      setErrorDeFoto(textoDelError(err))
+    } finally {
+      setSubiendo(false)
+    }
   }
 
   function volver() {
@@ -169,11 +207,11 @@ function CamposDelPlato({ datos: { categorias, etiquetas, plato } }: { datos: Da
 
   async function guardar(e: FormEvent) {
     e.preventDefault()
-    if (guardando) return
+    if (guardando || subiendo) return
     setIntentado(true)
     setAviso(null)
-    if (errores.nombre || errores.precio || errores.imagen) {
-      ;(errores.nombre ? refNombre : errores.precio ? refPrecio : refImagen).current?.focus()
+    if (errores.nombre || errores.precio) {
+      ;(errores.nombre ? refNombre : refPrecio).current?.focus()
       return
     }
     if (lectura.precio === null) return
@@ -184,21 +222,32 @@ function CamposDelPlato({ datos: { categorias, etiquetas, plato } }: { datos: Da
         descripcion: descripcion.trim() || null,
         precio: lectura.precio,
         categoriaId: Number(categoriaId),
-        imagenUrl: imagen.trim() || null,
+        imagenUrl: imagen,
         etiquetaIds,
       }
-      // Primero el plato y, si el destacado cambió, después el destacado: son dos llamadas del back.
+      // Primero el plato, después la foto del alta y, si el destacado cambió, el destacado: son llamadas aparte del back.
       const guardado = plato ? await editarPlato(plato.id, cuerpo) : await crearPlato(cuerpo)
+      const fallas: string[] = []
+      if (!plato && fotoPendiente) {
+        try {
+          await subirImagenDePlato(guardado.id, fotoPendiente)
+        } catch (err) {
+          fallas.push(`no se pudo subir la imagen. ${textoDelError(err)}`)
+        }
+      }
       if (destacado !== (plato?.destacado ?? false)) {
         try {
           await destacarPlato(guardado.id, destacado)
         } catch (err) {
-          // El plato ya quedó guardado: no se deja el alta abierta, para que otro "Guardar plato" no lo cree dos veces.
-          const texto = `El plato se guardó, pero no se pudo cambiar el menú del día. ${textoDelError(err)}`
-          if (plato) setAviso(texto)
-          else navigate(`/admin/menu/${guardado.id}`, { replace: true, state: { aviso: texto } })
-          return
+          fallas.push(`no se pudo cambiar el menú del día. ${textoDelError(err)}`)
         }
+      }
+      if (fallas.length > 0) {
+        // El plato ya quedó guardado: no se deja el alta abierta, para que otro "Guardar plato" no lo cree dos veces.
+        const texto = `El plato se guardó, pero ${fallas.join(' Y ')}`
+        if (plato) setAviso(texto)
+        else navigate(`/admin/menu/${guardado.id}`, { replace: true, state: { aviso: texto } })
+        return
       }
       navigate('/admin/menu')
     } catch (err) {
@@ -226,7 +275,7 @@ function CamposDelPlato({ datos: { categorias, etiquetas, plato } }: { datos: Da
         <button
           type="button"
           onClick={volver}
-          disabled={guardando}
+          disabled={guardando || subiendo}
           className={`flex h-11 shrink-0 items-center justify-center gap-2 rounded-[14px] text-[15px] font-semibold underline disabled:opacity-[.38] ${foco}`}
         >
           <img src={iconoVolver} alt="" width={20} height={20} />
@@ -360,34 +409,27 @@ function CamposDelPlato({ datos: { categorias, etiquetas, plato } }: { datos: Da
         <div className="flex w-[300px] shrink-0 flex-col gap-4">
           <div className="flex flex-col gap-3 rounded-2xl bg-linea p-[18px]">
             <h2 className="text-[16px] leading-[normal] font-semibold">Imagen</h2>
-            <VistaPrevia key={imagenDeVista} url={errorDeImagen(imagenDeVista) === null ? imagenDeVista.trim() || null : null} />
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="plato-imagen" className={rotulo}>
-                Link o ruta de la imagen
-              </label>
-              <input
-                ref={refImagen}
-                id="plato-imagen"
-                type="text"
-                inputMode="url"
-                autoComplete="off"
-                value={imagen}
-                maxLength={IMAGEN_MAX}
-                onChange={(e) => setImagen(e.target.value)}
-                onBlur={() => setImagenDeVista(imagen)}
-                placeholder="/img/milanesa.jpg"
-                aria-invalid={mostrar.imagen !== null}
-                aria-describedby={mostrar.imagen ? 'plato-imagen-error' : 'plato-imagen-ayuda'}
-                className={campo(mostrar.imagen !== null)}
-              />
-              {mostrar.imagen ? (
-                <ErrorDeCampo id="plato-imagen-error">{mostrar.imagen}</ErrorDeCampo>
-              ) : (
-                <p id="plato-imagen-ayuda" className="text-[13px] leading-[1.4]">
-                  Un link https o una ruta del front, como /img/milanesa.jpg. Sin imagen, el plato sale con el ícono.
-                </p>
-              )}
-            </div>
+            <VistaPrevia key={vistaLocal ?? imagen ?? ''} url={vistaLocal ?? imagen} />
+            {/* El input del archivo no se ve: lo abre el botón del Mockup, que es el que recibe el foco. */}
+            <input
+              ref={refArchivo}
+              type="file"
+              accept="image/jpeg,image/png"
+              onChange={elegirFoto}
+              tabIndex={-1}
+              aria-hidden="true"
+              className="sr-only"
+            />
+            <button
+              type="button"
+              onClick={() => refArchivo.current?.click()}
+              disabled={subiendo || guardando}
+              className={`h-11 w-full text-[14px] ${botonContorno}`}
+            >
+              <img src={iconoSubir} alt="" width={20} height={20} />
+              {subiendo ? 'Subiendo…' : 'Subir imagen'}
+            </button>
+            {errorDeFoto && <AvisoDeFallo>{errorDeFoto}</AvisoDeFallo>}
           </div>
 
           <div className="flex flex-col gap-2.5 rounded-2xl bg-linea p-[18px]">
@@ -418,13 +460,13 @@ function CamposDelPlato({ datos: { categorias, etiquetas, plato } }: { datos: Da
       </div>
 
       <div className="flex items-center justify-end gap-2.5">
-        <button type="button" onClick={volver} disabled={guardando} className={`h-12 text-[15px] ${botonContorno}`}>
+        <button type="button" onClick={volver} disabled={guardando || subiendo} className={`h-12 text-[15px] ${botonContorno}`}>
           <img src={iconoCancelar} alt="" width={20} height={20} />
           Cancelar
         </button>
         <button
           type="submit"
-          disabled={guardando || sinCategorias}
+          disabled={guardando || subiendo || sinCategorias}
           className={`flex h-12 items-center justify-center gap-2 rounded-[14px] bg-primario px-[18px] text-[15px] font-semibold text-texto-boton disabled:opacity-[.38] ${foco}`}
         >
           <img src={iconoGuardar} alt="" width={20} height={20} />
